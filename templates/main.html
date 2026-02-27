@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的小菜园</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <h1>我的小菜园</h1>
+                <span id="teamBadge" class="team-badge" style="display: none;"></span>
+            </div>
+            <div class="header-right">
+                <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
+                <button class="btn btn-sm btn-outline" onclick="showChangePasswordModal()">修改密码</button>
+                <a href="{{ url_for('logout') }}" class="btn btn-outline">退出登录</a>
+            </div>
+        </header>
+        
+        <!-- Main Content -->
+        <div class="main-content">
+            <!-- Sidebar -->
+            <aside class="sidebar">
+                <div class="sidebar-header">
+                    <h2>品类管理</h2>
+                    <button class="btn btn-sm btn-primary" onclick="showCreateGroupModal()">
+                        + 新建品类
+                    </button>
+                </div>
+                <div class="group-list" id="groupList">
+                    <!-- Groups will be loaded here -->
+                </div>
+            </aside>
+            
+            <!-- Content Area -->
+            <main class="content">
+                <!-- Tabs -->
+                <div class="tabs">
+                    <button class="tab active" data-tab="record" onclick="switchTab('record')">记录笔记</button>
+                    <button class="tab" data-tab="browse" onclick="switchTab('browse')">浏览笔记</button>
+                    {% if role == 'admin' %}
+                    <button class="tab" data-tab="admin" onclick="switchTab('admin')">管理面板</button>
+                    {% endif %}
+                </div>
+                
+                <!-- Record Tab -->
+                <div class="tab-content active" id="recordTab">
+                    <div class="card">
+                        <h3>记录新笔记</h3>
+                        <form id="noteForm" enctype="multipart/form-data">
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="noteDate">日期</label>
+                                    <input type="date" id="noteDate" required>
+                                </div>
+                                <div class="form-group">
+                                    <label for="noteGroup">品类</label>
+                                    <select id="noteGroup" required>
+                                        <option value="">请选择品类</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-group">
+                                <label for="noteContent">笔记内容</label>
+                                <textarea id="noteContent" rows="5" placeholder="请输入笔记内容..."></textarea>
+                            </div>
+                            <div class="form-group">
+                                <label>添加图片（可多选）</label>
+                                <div class="image-upload-area" id="imageUploadArea">
+                                    <input type="file" id="noteImages" accept="image/*" multiple hidden>
+                                    <button type="button" class="btn btn-outline" onclick="document.getElementById('noteImages').click()">
+                                        📷 选择图片
+                                    </button>
+                                    <span class="upload-hint">支持 PNG、JPG、GIF、WebP 格式</span>
+                                </div>
+                                <div class="image-preview-list" id="imagePreviewList">
+                                    <!-- Image previews will be shown here -->
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary">保存笔记</button>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Browse Tab -->
+                <div class="tab-content" id="browseTab">
+                    <div class="browse-header">
+                        <div class="form-group">
+                            <label for="browseGroup">选择品类</label>
+                            <select id="browseGroup" onchange="loadBrowseContent()">
+                                <option value="">全部品类</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="browse-content">
+                        <div class="notes-timeline" id="notesList">
+                            <!-- Notes will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Admin Tab -->
+                {% if role == 'admin' %}
+                <div class="tab-content" id="adminTab">
+                    <div class="admin-section">
+                        <h3>待审核用户</h3>
+                        <div class="pending-users-list" id="pendingUsersList">
+                            <!-- Pending users will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div class="admin-section">
+                        <h3>用户组管理</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showCreateTeamModal()">+ 新建用户组</button>
+                        <div class="teams-list" id="teamsList">
+                            <!-- Teams will be loaded here -->
+                        </div>
+                    </div>
+                    
+                    <div class="admin-section">
+                        <h3>所有用户</h3>
+                        <div class="users-table-container">
+                            <table class="users-table" id="usersTable">
+                                <thead>
+                                    <tr>
+                                        <th>用户名</th>
+                                        <th>角色</th>
+                                        <th>状态</th>
+                                        <th>用户组</th>
+                                        <th>注册时间</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <!-- Users will be loaded here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                {% endif %}
+            </main>
+        </div>
+    </div>
+    
+    <!-- Create Group Modal -->
+    <div class="modal" id="createGroupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建品类</h3>
+                <button class="close-btn" onclick="closeModal('createGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newGroupName">品类名称</label>
+                    <input type="text" id="newGroupName" placeholder="请输入品类名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('createGroupModal')">取消</button>
+                <button class="btn btn-primary" onclick="createGroup()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Group Modal -->
+    <div class="modal" id="editGroupModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>编辑品类</h3>
+                <button class="close-btn" onclick="closeModal('editGroupModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editGroupId">
+                <div class="form-group">
+                    <label for="editGroupName">品类名称</label>
+                    <input type="text" id="editGroupName" placeholder="请输入品类名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('editGroupModal')">取消</button>
+                <button class="btn btn-primary" onclick="updateGroup()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Note Modal -->
+    <div class="modal" id="editNoteModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3>编辑笔记</h3>
+                <button class="close-btn" onclick="closeModal('editNoteModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editNoteId">
+                <div class="form-row">
+                    <div class="form-group">
+                        <label for="editNoteDate">日期</label>
+                        <input type="date" id="editNoteDate" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="editNoteGroup">品类</label>
+                        <select id="editNoteGroup" required>
+                            <option value="">请选择品类</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="editNoteContent">笔记内容</label>
+                    <textarea id="editNoteContent" rows="5" placeholder="请输入笔记内容..."></textarea>
+                </div>
+                <div class="form-group">
+                    <label>现有图片</label>
+                    <div class="existing-images" id="editExistingImages">
+                        <!-- Existing images will be shown here -->
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label>添加新图片</label>
+                    <div class="image-upload-area">
+                        <input type="file" id="editNoteImages" accept="image/*" multiple hidden>
+                        <button type="button" class="btn btn-outline" onclick="document.getElementById('editNoteImages').click()">
+                            📷 选择图片
+                        </button>
+                    </div>
+                    <div class="image-preview-list" id="editImagePreviewList">
+                        <!-- New image previews will be shown here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('editNoteModal')">取消</button>
+                <button class="btn btn-primary" onclick="updateNote()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Image Preview Modal -->
+    <div class="modal" id="imageModal">
+        <div class="modal-content modal-large">
+            <div class="modal-header">
+                <h3 id="imageModalTitle">图片预览</h3>
+                <button class="close-btn" onclick="closeModal('imageModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <img id="modalImage" src="" alt="预览图片" class="preview-image">
+            </div>
+        </div>
+    </div>
+    
+    <!-- Change Password Modal -->
+    <div class="modal" id="changePasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>修改密码</h3>
+                <button class="close-btn" onclick="closeModal('changePasswordModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="oldPassword">原密码</label>
+                    <input type="password" id="oldPassword" placeholder="请输入原密码">
+                </div>
+                <div class="form-group">
+                    <label for="newPassword">新密码</label>
+                    <input type="password" id="newPassword" placeholder="请输入新密码">
+                </div>
+                <div class="form-group">
+                    <label for="confirmNewPassword">确认新密码</label>
+                    <input type="password" id="confirmNewPassword" placeholder="请再次输入新密码">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('changePasswordModal')">取消</button>
+                <button class="btn btn-primary" onclick="changePassword()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create Team Modal (Admin) -->
+    <div class="modal" id="createTeamModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建用户组</h3>
+                <button class="close-btn" onclick="closeModal('createTeamModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newTeamName">用户组名称</label>
+                    <input type="text" id="newTeamName" placeholder="请输入用户组名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('createTeamModal')">取消</button>
+                <button class="btn btn-primary" onclick="createTeam()">创建</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Assign Team Modal (Admin) -->
+    <div class="modal" id="assignTeamModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>分配用户组</h3>
+                <button class="close-btn" onclick="closeModal('assignTeamModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="assignUserId">
+                <p id="assignUserName"></p>
+                <div class="form-group">
+                    <label for="assignTeamSelect">选择用户组</label>
+                    <select id="assignTeamSelect">
+                        <option value="">无用户组</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('assignTeamModal')">取消</button>
+                <button class="btn btn-primary" onclick="assignTeam()">保存</button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div class="toast" id="toast"></div>
+    
+    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+</body>
+</html>
