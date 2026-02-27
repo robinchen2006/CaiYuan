@@ -24,6 +24,53 @@ document.addEventListener('DOMContentLoaded', function() {
     loadUserInfo();
 });
 
+// ============ Sidebar Toggle for Mobile ============
+
+function toggleSidebar() {
+    const sidebar = document.querySelector('.sidebar');
+    if (window.innerWidth <= 768) {
+        if (getComputedStyle(sidebar).display === 'none') {
+            sidebar.style.display = 'block';
+        } else {
+            sidebar.style.display = 'none';
+        }
+    }
+}
+
+function toggleGroupList() {
+    const groupList = document.getElementById('groupList');
+    const collapseIcon = document.getElementById('collapseIcon');
+    
+    if (groupList.classList.contains('collapsed')) {
+        groupList.classList.remove('collapsed');
+        collapseIcon.textContent = '▼'; // Down means expanded
+    } else {
+        groupList.classList.add('collapsed');
+        collapseIcon.textContent = '►'; // Right means collapsed
+    }
+}
+
+// Reset sidebar visibility on resize
+window.addEventListener('resize', function() {
+    const sidebar = document.querySelector('.sidebar');
+    if (window.innerWidth > 768) {
+        sidebar.style.display = ''; // Remove inline style to revert to CSS
+    } else {
+         // On mobile, let it follow the toggle state or default hidden
+         if (sidebar.style.display === '') {
+             sidebar.style.display = 'none';
+         }
+    }
+});
+
+// Run on load to set initial state correctly if starting on mobile
+window.addEventListener('load', function() {
+    const sidebar = document.querySelector('.sidebar');
+    if (window.innerWidth <= 768) {
+        sidebar.style.display = 'none';
+    }
+});
+
 // ============ Toast Notification ============
 
 function showToast(message, type = 'success') {

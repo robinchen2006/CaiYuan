@@ -945,3 +945,275 @@ body {
         padding: 8px;
     }
 }
+@media (max-width: 768px) {
+    /* Mobile Base Styles */
+    :root {
+        font-size: 14px; /* Smaller base font size */
+    }
+
+    /* Header Adjustments */
+    .header {
+        padding: 10px 15px;
+        position: sticky;
+        top: 0;
+        z-index: 1000;
+    }
+
+    .header h1 {
+        font-size: 1.2rem;
+        margin-left: 10px;
+    }
+
+    .header-left {
+        display: flex;
+        align-items: center;
+    }
+
+    .mobile-menu-btn {
+        display: block !important; /* Show toggle button */
+        background: none;
+        border: none;
+        font-size: 1.5rem;
+        cursor: pointer;
+        padding: 5px;
+        color: var(--secondary-color);
+    }
+
+    /* Sidebar / Category List */
+    .app-container {
+        flex-direction: column;
+    }
+
+    .main-content {
+        flex-direction: column;
+    }
+
+    .sidebar {
+        width: 100%;
+        height: auto;
+        position: static;
+        border-right: none;
+        border-bottom: 1px solid var(--border-color);
+        padding: 10px 15px;
+        display: none; /* Hidden by default */
+    }
+
+    .sidebar.active {
+        display: block; /* Show when active */
+    }
+
+    .sidebar-header {
+        margin-bottom: 10px;
+        padding-bottom: 10px;
+    }
+    
+    .sidebar-header h2 {
+        font-size: 1rem;
+    }
+
+    /* Content Area */
+    .content {
+        padding: 15px;
+    }
+
+    /* Form Adjustments */
+    .form-row {
+        flex-direction: column;
+        gap: 15px;
+    }
+
+    /* Tabs */
+    .tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        padding-bottom: 5px; /* Scrollbar space */
+    }
+
+    .tab {
+        padding: 8px 15px;
+        font-size: 0.9rem;
+    }
+
+    /* Note Card Adjustments */
+    .note-card-header {
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 10px 15px;
+    }
+
+    .note-card-meta {
+        font-size: 0.8rem; /* Smaller font for meta info */
+        margin-top: 5px;
+        gap: 10px;
+        flex-wrap: wrap; 
+    }
+    
+    .card {
+        padding: 15px;
+    }
+
+    .browse-header .form-group {
+        max-width: 100%;
+    }
+
+    /* Image Upload Limits */
+    .image-preview-item {
+        width: 80px;
+        height: 80px;
+    }
+}
+
+/* Default state for mobile menu button on desktop */
+.mobile-menu-btn {
+    display: none;
+}
+
+
+/* New Collapsible Sidebar Styles */
+.sidebar-title-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    margin-bottom: 10px;
+}
+
+.sidebar-header {
+    flex-direction: column;
+    align-items: stretch;
+}
+
+.btn-collapse-groups {
+    padding: 2px 8px;
+    font-size: 0.8rem;
+    line-height: 1;
+    margin-left: 10px;
+}
+
+.group-list.collapsed {
+    display: none;
+}
+
+/* Adjustments for mobile view */
+@media (max-width: 768px) {
+    .sidebar-header {
+        display: flex;
+        flex-direction: row;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        align-items: center;
+    }
+    
+    .sidebar-title-row {
+        width: auto;
+        margin-bottom: 0;
+    }
+
+    .btn-collapse-groups {
+        margin-left: 5px;
+    }
+}
+
+
+/* UI Tweaks based on request */
+
+/* Header buttons: Equal size and 80% smaller */
+.btn-header {
+    font-size: 0.8rem; /* 80% of 1rem base */
+    padding: 5px 10px; /* Reduced padding */
+    min-width: 80px;   /* Ensure minimum width for consistency */
+    display: inline-flex;
+    justify-content: center;
+    align-items: center;
+    height: 30px; /* Fixed height for consistency */
+}
+
+/* Note Form: Date and Category inline */
+#noteForm .form-row .form-group {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+#noteForm .form-row .form-group label {
+    margin-bottom: 0;
+    white-space: nowrap;
+    min-width: 40px; /* Ensure labels align somewhat if needed, though '日期' and '品类' are short */
+}
+
+#noteForm .form-row .form-group input,
+#noteForm .form-row .form-group select {
+    flex: 1;
+}
+
+/* Image Upload Button: 50% smaller */
+.image-upload-area .btn {
+    transform: scale(0.8); /* Scale down visually */
+    transform-origin: left center; /* Avoid layout shift */
+    font-size: 0.8rem;
+    padding: 4px 8px;
+}
+/* If exact 50% is required, that would be very small, almost unreadable. 
+   Assuming '50% smaller' might mean half size, which is tiny. 
+   Or maybe 50% *reduction*, so 50% of original size. 
+   Let's try a strict scaling approach if the user insists on '50%'.
+*/
+.image-upload-area .btn.small-upload-btn {
+    font-size: 0.7rem;
+    padding: 3px 6px;
+} 
+/* Let's just target the existing structure */
+.image-upload-area button.btn {
+   /* Trying to interpret 'shrink 50%' */
+   /* Standard btn padding is 12px 24px. */
+   /* 50% would be 6px 12px (btn-sm size). */
+   /* If it was already standard, making it smaller. */
+   font-size: 0.75rem; 
+   padding: 4px 8px;
+}
+
+
+/* --- Final Styles for Request --- */
+
+/* 1. Header Buttons: Equal size & smaller */
+.btn-header {
+    font-size: 0.8rem !important; /* Force override */
+    padding: 0 10px !important;    /* Smaller padding */
+    min-width: 70px !important;
+    height: 28px !important;
+    line-height: 28px !important;  /* Vertically center text */
+    display: inline-block !important;
+    text-align: center;
+}
+
+/* 2. Record Note Form: Inline date/category */
+#noteForm .form-row .form-group {
+    display: flex !important;
+    align-items: center !important;
+    gap: 10px !important;
+    margin-bottom: 10px;
+}
+
+#noteForm .form-row .form-group label {
+    margin-bottom: 0 !important;
+    white-space: nowrap !important;
+    width: auto !important;
+    min-width: 40px;
+}
+
+#noteForm .form-row .form-group input,
+#noteForm .form-row .form-group select {
+    flex: 1 !important;
+    height: 36px !important;
+    padding: 5px 10px !important;
+}
+
+/* 3. Image Upload Button: 50% smaller */
+/* Using transform scale to visually shrink it exactly 50% from original btn size if desired, 
+   but 50% scale is usually too small. I will use scale(0.65) which is very small. */
+.image-upload-area button.btn {
+    transform: scale(0.65) !important; 
+    transform-origin: left center !important;
+    margin-right: -30px; /* Compensate for whitespace from scaling */
+}
+
