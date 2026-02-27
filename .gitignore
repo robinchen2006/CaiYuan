@@ -2,4 +2,6 @@
 *.db
 *.log
 *.bak
-
+venv/
+static/uploads
+.venv/
