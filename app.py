@@ -4,6 +4,8 @@ from werkzeug.utils import secure_filename
 import sqlite3
 import os
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from functools import wraps
 
@@ -12,6 +14,19 @@ app.secret_key = 'your-secret-key-change-in-production'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
+
+# Configure logging
+if not os.path.exists('logs'):
+    os.makedirs('logs', exist_ok=True)
+
+file_handler = RotatingFileHandler('logs/caiyuan.log', maxBytes=102400, backupCount=10)
+file_handler.setFormatter(logging.Formatter(
+    '%(asctime)s %(levelname)s: %(message)s [in %(pathname)s:%(lineno)d]'
+))
+file_handler.setLevel(logging.INFO)
+app.logger.addHandler(file_handler)
+app.logger.setLevel(logging.INFO)
+app.logger.info('CaiYuan startup')
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
@@ -135,6 +150,7 @@ def init_db():
     
     conn.commit()
     conn.close()
+    app.logger.info('Database initialized successfully')
 
 
 def login_required(f):
@@ -195,9 +211,11 @@ def login():
         if user and password and check_password_hash(user['password_hash'], password):
             # Check if user is approved
             if user['status'] == 'pending':
+                app.logger.warning(f'Login attempt by pending user: {username}')
                 flash('您的账号正在等待管理员审核', 'error')
                 return render_template('login.html')
             elif user['status'] == 'rejected':
+                app.logger.warning(f'Login attempt by rejected user: {username}')
                 flash('您的账号已被拒绝', 'error')
                 return render_template('login.html')
             
@@ -205,8 +223,10 @@ def login():
             session['username'] = user['username']
             session['role'] = user['role']
             session['team_id'] = user['team_id']
+            app.logger.info(f'User logged in successfully: {username}')
             return redirect(url_for('main'))
         else:
+            app.logger.warning(f'Failed login attempt for username: {username}')
             flash('用户名或密码错误', 'error')
     
     return render_template('login.html')
@@ -239,9 +259,11 @@ def register():
                 VALUES (?, ?, 'user', 'pending')
             ''', (username, password_hash))
             conn.commit()
+            app.logger.info(f'New user registration: {username}')
             flash('注册成功，请等待管理员审核后登录', 'success')
             return redirect(url_for('login'))
         except sqlite3.IntegrityError:
+            app.logger.warning(f'Registration failed - username exists: {username}')
             flash('用户名已存在', 'error')
         finally:
             conn.close()
@@ -298,6 +320,7 @@ def change_password():
     conn.commit()
     conn.close()
     
+    app.logger.info(f'User {session["user_id"]} changed password')
     return jsonify({'message': '密码修改成功'})
 
 
@@ -353,8 +376,10 @@ def approve_user(user_id):
     conn.close()
     
     if affected:
+        app.logger.info(f'Admin approved user id: {user_id}')
         return jsonify({'message': '用户已通过审核'})
     else:
+        app.logger.warning(f'Admin failed to approve user id: {user_id} (not found or not pending)')
         return jsonify({'error': '用户不存在或已审核'}), 400
 
 
@@ -373,8 +398,10 @@ def reject_user(user_id):
     conn.close()
     
     if affected:
+        app.logger.info(f'Admin rejected user id: {user_id}')
         return jsonify({'message': '用户已被拒绝'})
     else:
+        app.logger.warning(f'Admin failed to reject user id: {user_id} (not found or not pending)')
         return jsonify({'error': '用户不存在或已审核'}), 400
 
 
@@ -410,6 +437,7 @@ def assign_user_team(user_id):
     conn.commit()
     conn.close()
     
+    app.logger.info(f'Admin assigned user {user_id} to team {team_id if team_id else "None"}')
     return jsonify({'message': '用户组分配成功，已迁移用户的历史笔记和品类'})
 
 
@@ -418,6 +446,7 @@ def assign_user_team(user_id):
 def delete_user(user_id):
     """Delete a user (admin only)"""
     if user_id == session['user_id']:
+        app.logger.warning(f'Admin tried to delete themselves: {user_id}')
         return jsonify({'error': '不能删除自己'}), 400
     
     conn = get_db()
@@ -428,12 +457,14 @@ def delete_user(user_id):
     user = cursor.fetchone()
     if user and user['role'] == 'admin':
         conn.close()
+        app.logger.warning(f'Admin tried to delete another admin: {user_id}')
         return jsonify({'error': '不能删除管理员账号'}), 400
     
     cursor.execute('DELETE FROM users WHERE id = ?', (user_id,))
     conn.commit()
     conn.close()
     
+    app.logger.info(f'Admin deleted user: {user_id}')
     return jsonify({'message': '用户已删除'})
 
 
@@ -578,6 +609,7 @@ def create_group():
     group_id = cursor.lastrowid
     conn.close()
     
+    app.logger.info(f'User {session["user_id"]} created group: {name} (id: {group_id}, team: {team_id})')
     return jsonify({'id': group_id, 'name': name, 'message': '品类创建成功'})
 
 
@@ -661,6 +693,7 @@ def delete_group(group_id):
     conn.commit()
     conn.close()
     
+    app.logger.info(f'User {session["user_id"]} deleted group: {group_id} (team: {team_id})')
     return jsonify({'message': '品类删除成功'})
 
 
@@ -800,12 +833,14 @@ def create_note():
         
         conn.commit()
         
+        app.logger.info(f'User {session["user_id"]} created note: {note_id} in group {group_id}')
         return jsonify({
             'id': note_id,
             'images': saved_images,
             'message': '笔记保存成功'
         })
     except Exception as e:
+        app.logger.error(f'Error creating note for user {session["user_id"]}: {str(e)}', exc_info=True)
         conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
@@ -914,8 +949,10 @@ def update_note(note_id):
         
         conn.commit()
         
+        app.logger.info(f'User {session["user_id"]} updated note: {note_id}')
         return jsonify({'message': '笔记更新成功', 'new_images': saved_images})
     except Exception as e:
+        app.logger.error(f'Error updating note {note_id} for user {session["user_id"]}: {str(e)}', exc_info=True)
         conn.rollback()
         return jsonify({'error': str(e)}), 500
     finally:
@@ -940,6 +977,7 @@ def delete_note(note_id):
     
     if not cursor.fetchone():
         conn.close()
+        app.logger.warning(f'User {session.get("user_id")} attempted to delete non-existent or unauthorized note: {note_id}')
         return jsonify({'error': '笔记不存在或无权限'}), 403
     
     # Get images to delete files
@@ -956,6 +994,7 @@ def delete_note(note_id):
     conn.commit()
     conn.close()
     
+    app.logger.info(f'User {session.get("user_id")} deleted note: {note_id}')
     return jsonify({'message': '笔记删除成功'})
 
 
@@ -989,6 +1028,7 @@ def delete_note_image(note_id, image_id):
         
         cursor.execute('DELETE FROM images WHERE id = ?', (image_id,))
         conn.commit()
+        app.logger.info(f'User {session.get("user_id")} deleted image {image_id} from note {note_id}')
     
     conn.close()
     
