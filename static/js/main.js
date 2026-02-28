@@ -557,11 +557,14 @@ function renderNotes(notes) {
     notesList.innerHTML = notes.map(note => {
         const imagesHtml = note.images && note.images.length > 0 
             ? `<div class="note-card-images">
-                ${note.images.map(img => `
+                ${note.images.map(img => {
+                    // Use thumbnail if available, otherwise fallback to original
+                    const thumbSrc = img.thumbnail ? `/static/uploads/${img.thumbnail}` : `/static/uploads/${img.filename}`;
+                    return `
                     <div class="note-image-item" onclick="showImageModal('/static/uploads/${img.filename}', '${escapeHtml(img.original_filename)}')">
-                        <img src="/static/uploads/${img.filename}" alt="${escapeHtml(img.original_filename)}">
+                        <img src="${thumbSrc}" alt="${escapeHtml(img.original_filename)}" loading="lazy" onerror="this.onerror=null;this.src='/static/uploads/${img.filename}'">
                     </div>
-                `).join('')}
+                `}).join('')}
                </div>`
             : '';
         

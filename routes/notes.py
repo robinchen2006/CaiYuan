@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, session, current_app
 from database import get_db
-from utils import login_required, get_user_team_id, allowed_file, convert_to_progressive_jpeg
+from utils import login_required, get_user_team_id, allowed_file, convert_to_progressive_jpeg, create_thumbnail
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
@@ -216,7 +216,19 @@ def get_notes():
             WHERE note_id = ?
             ORDER BY created_at ASC
         ''', (note['id'],))
-        note['images'] = [dict(img) for img in cursor.fetchall()]
+        imgs = []
+        for img_row in cursor.fetchall():
+            img = dict(img_row)
+            # Add thumbnail path (assumes thumb_{filename} exists in same folder)
+            path = img['filename']
+            parts = path.split('/')
+            if len(parts) > 1:
+                parts[-1] = 'thumb_' + parts[-1]
+                img['thumbnail'] = '/'.join(parts)
+            else:
+                img['thumbnail'] = 'thumb_' + path
+            imgs.append(img)
+        note['images'] = imgs
         notes.append(note)
     
     return jsonify(notes)
@@ -311,6 +323,12 @@ def create_note():
                 # Update filename to include user path for access
                 # Use forward slash for web URL compatibility
                 filename = f"{username}/{name}"
+
+                # Create thumbnail
+                try:
+                    create_thumbnail(filepath)
+                except Exception as e:
+                    current_app.logger.error(f'Error creating thumbnail for {name}: {str(e)}')
                 
                 cursor.execute('''
                     INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
@@ -455,6 +473,12 @@ def update_note(note_id):
                 except Exception as e:
                     current_app.logger.error(f'Error processing image {name}: {str(e)}')
                 
+                # Create thumbnail
+                try:
+                    create_thumbnail(filepath)
+                except Exception as e:
+                    current_app.logger.error(f'Error creating thumbnail for {name}: {str(e)}')
+
                 # Filename with relative path
                 filename = f"{current_username}/{name}"
                 

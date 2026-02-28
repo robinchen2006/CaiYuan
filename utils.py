@@ -48,6 +48,34 @@ def convert_to_progressive_jpeg(filepath):
         # ...
         return filepath
 
+def create_thumbnail(image_path, size=(300, 300)):
+    """
+    Generate a thumbnail for an image.
+    Saves it as thumb_<filename> in the same directory.
+    Returns the path to the thumbnail.
+    """
+    try:
+        if not os.path.exists(image_path):
+            return None
+        
+        filename = os.path.basename(image_path)
+        dirname = os.path.dirname(image_path)
+        thumb_filename = f"thumb_{filename}"
+        thumb_path = os.path.join(dirname, thumb_filename)
+        
+        with Image.open(image_path) as img:
+            # Convert to RGB if necessary (e.g. for PNG with transparency if saving as JPG, though we'll keep format)
+            if img.mode in ('RGBA', 'P'):
+                img = img.convert('RGB')
+            
+            img.thumbnail(size)
+            img.save(thumb_path)
+            
+        return thumb_path
+    except Exception as e:
+        print(f"Error creating thumbnail: {e}")
+        return None
+
 def allowed_file(filename):
     """Check if file extension is allowed"""
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS

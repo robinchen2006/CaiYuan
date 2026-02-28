@@ -1,5 +1,5 @@
 from flask import Blueprint, jsonify, request, session, current_app
-from utils import login_required, convert_to_progressive_jpeg
+from utils import login_required, convert_to_progressive_jpeg, create_thumbnail
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
@@ -91,6 +91,12 @@ def merge_chunks():
                 filepath = new_filepath
         except Exception as e:
             current_app.logger.error(f'Error processing image {filename}: {str(e)}')
+
+        # Create thumbnail
+        try:
+            create_thumbnail(filepath)
+        except Exception as e:
+            current_app.logger.error(f'Error creating thumbnail for {filename}: {str(e)}')
 
                 # Continue without failing completely - just keep original file
 
