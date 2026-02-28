@@ -5,3 +5,5 @@
 venv/
 static/uploads
 .venv/
+logs/
+nohup.out
