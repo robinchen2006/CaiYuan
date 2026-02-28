@@ -630,9 +630,12 @@ function renderExistingImages(images) {
     
     container.innerHTML = images.map(img => {
         const isKept = editKeepImageIds.includes(img.id);
+        // Use thumbnail if available, otherwise fallback to original
+        const thumbSrc = img.thumbnail ? `/static/uploads/${img.thumbnail}` : `/static/uploads/${img.filename}`;
+        
         return `
             <div class="existing-image-item ${isKept ? '' : 'removed'}" data-id="${img.id}">
-                <img src="/static/uploads/${img.filename}" alt="${escapeHtml(img.original_filename)}">
+                <img src="${thumbSrc}" alt="${escapeHtml(img.original_filename)}" loading="lazy" onerror="this.onerror=null;this.src='/static/uploads/${img.filename}'">
                 <button type="button" class="remove-btn" onclick="toggleExistingImage(${img.id})">${isKept ? '×' : '+'}</button>
             </div>
         `;
