@@ -559,6 +559,17 @@ def create_group():
     
     conn = get_db()
     cursor = conn.cursor()
+    
+    # Check if group name already exists
+    if team_id:
+        cursor.execute('SELECT id FROM groups WHERE name = ? AND team_id = ?', (name, team_id))
+    else:
+        cursor.execute('SELECT id FROM groups WHERE name = ? AND user_id = ? AND team_id IS NULL', (name, session['user_id']))
+        
+    if cursor.fetchone():
+        conn.close()
+        return jsonify({'error': '该品类名称已存在，请使用其他名称'}), 400
+        
     cursor.execute('''
         INSERT INTO groups (name, user_id, team_id) 
         VALUES (?, ?, ?)

@@ -135,11 +135,11 @@ body {
 /* Button Styles */
 .btn {
     display: inline-block;
-    padding: 12px 24px;
+    padding: 6px 12px;
     border: none;
     border-radius: var(--radius);
-    font-size: 1rem;
-    font-weight: 500;
+    font-size: 0.8rem;
+    font-weight: 360;
     cursor: pointer;
     transition: all 0.3s;
     text-decoration: none;
