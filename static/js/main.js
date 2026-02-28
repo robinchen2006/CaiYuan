@@ -469,7 +469,6 @@ function renderNotes(notes) {
                     </div>
                     <div class="note-card-actions">
                         <button class="btn btn-sm btn-outline" onclick="showEditNoteModal(${note.id})">编辑</button>
-                        <button class="btn btn-sm btn-danger" onclick="deleteNote(${note.id})">删除</button>
                     </div>
                 </div>
                 <div class="note-card-body">
@@ -592,9 +591,19 @@ async function updateNote() {
     }
 }
 
+async function deleteCurrentNote() {
+    const noteId = document.getElementById('editNoteId').value;
+    if (noteId) {
+        const success = await deleteNote(noteId);
+        if (success) {
+            closeModal('editNoteModal');
+        }
+    }
+}
+
 async function deleteNote(noteId) {
     if (!confirm('确定要删除这条笔记吗？关联的图片也将被删除。')) {
-        return;
+        return false;
     }
     
     try {
@@ -605,12 +614,15 @@ async function deleteNote(noteId) {
         if (response.ok) {
             showToast('笔记删除成功');
             loadBrowseContent();
+            return true;
         } else {
             const data = await response.json();
             showToast(data.error || '删除失败', 'error');
+            return false;
         }
     } catch (error) {
         showToast('删除失败', 'error');
+        return false;
     }
 }
 

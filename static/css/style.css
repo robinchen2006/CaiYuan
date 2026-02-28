@@ -89,7 +89,7 @@ body {
 
 /* Form Styles */
 .form-group {
-    margin-bottom: 20px;
+    margin: 0;
 }
 
 .form-group label {
@@ -345,7 +345,7 @@ body {
 .tabs {
     display: flex;
     gap: 10px;
-    margin-bottom: 30px;
+    margin-bottom: 0;
     border-bottom: 2px solid var(--border-color);
     padding-bottom: 15px;
 }
@@ -401,15 +401,34 @@ body {
     display: flex;
     align-items: center;
     gap: 15px;
-    padding: 15px;
+    padding: 0;
     background-color: var(--light-color);
     border-radius: var(--radius);
     border: 2px dashed var(--border-color);
 }
 
+.image-upload-area .btn {
+    padding: 0;
+    border: none;
+    background: none;
+    font-size: 0.9rem; /* Same as the hint text */
+    line-height: normal; /* Normal line height */
+    color: var(--primary-color); /* Make it look actionable */
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.image-upload-area .btn:hover {
+    background: none;
+    color: var(--primary-dark);
+    text-decoration: underline;
+}
+
 .upload-hint {
     color: var(--secondary-color);
     font-size: 0.9rem;
+    line-height: normal;
 }
 
 /* Image Preview List */
@@ -456,10 +475,10 @@ body {
 /* Browse Content */
 .browse-header {
     background: white;
-    padding: 20px;
+    padding: 5px;
     border-radius: var(--radius);
     box-shadow: var(--shadow);
-    margin-bottom: 25px;
+    margin-bottom: 10px;
 }
 
 .browse-header .form-group {
@@ -483,11 +502,12 @@ body {
 
 .note-card-header {
     display: flex;
-    justify-content: space-between;
+    justify-content: flex-start;
     align-items: center;
-    padding: 15px 20px;
+    padding: 0 20px;
     background-color: var(--light-color);
     border-bottom: 1px solid var(--border-color);
+    gap: 20px;
 }
 
 .note-card-meta {
@@ -495,17 +515,31 @@ body {
     gap: 20px;
     color: var(--secondary-color);
     font-size: 0.9rem;
+    align-items: center;
 }
 
 .note-card-meta span {
     display: flex;
     align-items: center;
     gap: 5px;
+    height: 100%; /* Ensure spans fill height if needed */
 }
 
 .note-card-actions {
     display: flex;
     gap: 10px;
+    align-items: center;
+    height: auto; /* Allow natural height */
+}
+
+.note-card-actions .btn {
+    padding: 0 10px;
+    font-size: 0.9rem;
+    line-height: 1.6; /* Match body line-height */
+    height: auto;
+    display: inline-flex;
+    align-items: center;
+    border: 1px solid var(--border-color); /* Ensure border is visible but thin */
 }
 
 .note-card-body {
@@ -1036,14 +1070,12 @@ body {
 
     /* Note Card Adjustments */
     .note-card-header {
-        flex-direction: column;
-        align-items: flex-start;
-        padding: 10px 15px;
+        padding: 0px 15px;
+        /* Keep row layout on mobile too */
     }
 
     .note-card-meta {
         font-size: 0.8rem; /* Smaller font for meta info */
-        margin-top: 5px;
         gap: 10px;
         flex-wrap: wrap; 
     }
@@ -1138,7 +1170,7 @@ body {
 #noteForm .form-row .form-group label {
     margin-bottom: 0;
     white-space: nowrap;
-    min-width: 40px; /* Ensure labels align somewhat if needed, though 'ÈÕÆÚ' and 'Æ·Àà' are short */
+    min-width: 40px; /* Ensure labels align somewhat if needed, though 'ï¿½ï¿½ï¿½ï¿½' and 'Æ·ï¿½ï¿½' are short */
 }
 
 #noteForm .form-row .form-group input,
@@ -1146,31 +1178,8 @@ body {
     flex: 1;
 }
 
-/* Image Upload Button: 50% smaller */
-.image-upload-area .btn {
-    transform: scale(0.8); /* Scale down visually */
-    transform-origin: left center; /* Avoid layout shift */
-    font-size: 0.8rem;
-    padding: 4px 8px;
-}
-/* If exact 50% is required, that would be very small, almost unreadable. 
-   Assuming '50% smaller' might mean half size, which is tiny. 
-   Or maybe 50% *reduction*, so 50% of original size. 
-   Let's try a strict scaling approach if the user insists on '50%'.
-*/
-.image-upload-area .btn.small-upload-btn {
-    font-size: 0.7rem;
-    padding: 3px 6px;
-} 
-/* Let's just target the existing structure */
-.image-upload-area button.btn {
-   /* Trying to interpret 'shrink 50%' */
-   /* Standard btn padding is 12px 24px. */
-   /* 50% would be 6px 12px (btn-sm size). */
-   /* If it was already standard, making it smaller. */
-   font-size: 0.75rem; 
-   padding: 4px 8px;
-}
+/* Upload button styles removed here to clean up */ 
+/* Removed shrinking button styles again */
 
 
 /* --- Final Styles for Request --- */
@@ -1187,10 +1196,14 @@ body {
 }
 
 /* 2. Record Note Form: Inline date/category */
+#noteForm .form-row {
+    gap: 5px !important; /* Reduce gap between form groups */
+}
+
 #noteForm .form-row .form-group {
     display: flex !important;
     align-items: center !important;
-    gap: 10px !important;
+    gap: 5px !important; /* Reduce gap between label and input */
     margin-bottom: 10px;
 }
 
@@ -1208,12 +1221,6 @@ body {
     padding: 5px 10px !important;
 }
 
-/* 3. Image Upload Button: 50% smaller */
-/* Using transform scale to visually shrink it exactly 50% from original btn size if desired, 
-   but 50% scale is usually too small. I will use scale(0.65) which is very small. */
-.image-upload-area button.btn {
-    transform: scale(0.65) !important; 
-    transform-origin: left center !important;
-    margin-right: -30px; /* Compensate for whitespace from scaling */
-}
+/* 3. Image Upload Button */
+/* Removed shrinking styles as user requested enlargement */
 
