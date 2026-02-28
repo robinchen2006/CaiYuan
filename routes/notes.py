@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, session, current_app
 from database import get_db
-from utils import login_required, get_user_team_id, allowed_file
+from utils import login_required, get_user_team_id, allowed_file, convert_to_progressive_jpeg
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
@@ -299,6 +299,15 @@ def create_note():
                 filepath = os.path.join(user_folder, name)
                 file.save(filepath)
                 
+                # Convert to progressive JPEG
+                try:
+                    updated_filepath = convert_to_progressive_jpeg(filepath)
+                    if updated_filepath != filepath:
+                        name = os.path.basename(updated_filepath)
+                        filepath = updated_filepath
+                except Exception as e:
+                    current_app.logger.error(f'Error processing image {name}: {str(e)}')
+                
                 # Update filename to include user path for access
                 # Use forward slash for web URL compatibility
                 filename = f"{username}/{name}"
@@ -436,6 +445,15 @@ def update_note(note_id):
                 # Save file
                 filepath = os.path.join(user_folder, name)
                 file.save(filepath)
+                
+                # Convert to progressive JPEG
+                try:
+                    updated_filepath = convert_to_progressive_jpeg(filepath)
+                    if updated_filepath != filepath:
+                        name = os.path.basename(updated_filepath)
+                        filepath = updated_filepath
+                except Exception as e:
+                    current_app.logger.error(f'Error processing image {name}: {str(e)}')
                 
                 # Filename with relative path
                 filename = f"{current_username}/{name}"

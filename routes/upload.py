@@ -1,9 +1,10 @@
 from flask import Blueprint, jsonify, request, session, current_app
-from utils import login_required
+from utils import login_required, convert_to_progressive_jpeg
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
 import shutil
+# from PIL import Image # No longer needed here if using utils
 
 upload_bp = Blueprint('upload', __name__)
 
@@ -81,6 +82,18 @@ def merge_chunks():
         # Clean up temp files
         shutil.rmtree(temp_dir)
         
+        # Process image via utility function
+        try:
+            new_filepath = convert_to_progressive_jpeg(filepath)
+            if new_filepath != filepath:
+                # Update name if extension changed (e.g. png -> jpg)
+                name = os.path.basename(new_filepath)
+                filepath = new_filepath
+        except Exception as e:
+            current_app.logger.error(f'Error processing image {filename}: {str(e)}')
+
+                # Continue without failing completely - just keep original file
+
         # Return the relative path for saving to DB + filename
         relative_path = f"{current_username}/{name}"
         

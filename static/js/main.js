@@ -424,6 +424,36 @@ async function uploadChunkedFile(file, onProgress) {
     return await mergeResponse.json();
 }
 
+/**
+ * Process files for upload, using chunked upload for large files or large batches.
+ * @param {File[]} files - List of files to process
+ * @returns {Promise<{uploadedChunks: any[], smallFiles: File[]}>}
+ */
+async function processFilesForUpload(files) {
+    const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB
+    const MAX_BATCH_SIZE = 10 * 1024 * 1024; // 10MB limit for non-chunked batch
+    const uploadedChunks = [];
+    const smallFiles = [];
+    let totalSmallSize = 0;
+
+    for (const file of files) {
+        // Determine if we should chunk this file
+        // 1. It is individually large (>5MB)
+        // 2. OR adding it to the batch would exceed the safe batch size
+        if (file.size > CHUNK_THRESHOLD || (totalSmallSize + file.size > MAX_BATCH_SIZE)) {
+            showToast(`正在分块上传: ${file.name}...`, 'info');
+            // This might throw, caller should handle try/catch
+            const result = await uploadChunkedFile(file);
+            uploadedChunks.push(result);
+        } else {
+            smallFiles.push(file);
+            totalSmallSize += file.size;
+        }
+    }
+    
+    return { uploadedChunks, smallFiles };
+}
+
 // ============ Form Handlers ============
 
 function setupFormHandlers() {
@@ -445,41 +475,14 @@ function setupFormHandlers() {
             return;
         }
         
-        // Handle file uploads (chunked for large files or many files)
-        // Reduce threshold to catch accumulated small files too, or just chunk everything > 1MB safely
-        const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB
-        const uploadedChunks = [];
-        const smallFiles = [];
-        let totalSmallSize = 0;
-        const MAX_BATCH_SIZE = 10 * 1024 * 1024; // 10MB limit for non-chunked batch
-
         const submitButton = document.querySelector('#noteForm button[type="submit"]');
         const originalButtonText = submitButton.textContent;
         submitButton.disabled = true;
         submitButton.textContent = '上传中...';
         
         try {
-            // Process files
-            for (const file of selectedFiles) {
-                // Determine if we should chunk this file
-                // 1. It is individually large (>5MB)
-                // 2. OR adding it to the batch would exceed the safe batch size
-                if (file.size > CHUNK_THRESHOLD || (totalSmallSize + file.size > MAX_BATCH_SIZE)) {
-                    showToast(`正在分块上传: ${file.name}...`, 'info');
-                    try {
-                        const result = await uploadChunkedFile(file);
-                        uploadedChunks.push(result);
-                    } catch (err) {
-                        showToast(`文件 ${file.name} 上传失败: ` + err.message, 'error');
-                        submitButton.disabled = false;
-                        submitButton.textContent = originalButtonText;
-                        return;
-                    }
-                } else {
-                    smallFiles.push(file);
-                    totalSmallSize += file.size;
-                }
-            }
+            // Process files (using shared chunked logic)
+            const { uploadedChunks, smallFiles } = await processFilesForUpload(selectedFiles);
             
             const formData = new FormData();
             formData.append('content', content);
@@ -666,38 +669,14 @@ async function updateNote() {
         return;
     }
     
-    // Handle file uploads (chunked for large files or batch size)
-    const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB
-    const MAX_BATCH_SIZE = 10 * 1024 * 1024; // 10MB limit for non-chunked batch
-    const uploadedChunks = [];
-    const smallFiles = [];
-    let totalSmallSize = 0;
-    
     const submitButton = document.querySelector('#editNoteModal .btn-primary'); // Assuming it's the primary button
     const originalButtonText = submitButton.textContent;
     submitButton.disabled = true;
     submitButton.textContent = '更新中...';
     
     try {
-        // Process new files
-        for (const file of editSelectedFiles) {
-            // Determine if we should chunk
-            if (file.size > CHUNK_THRESHOLD || (totalSmallSize + file.size > MAX_BATCH_SIZE)) {
-                showToast(`正在分块上传: ${file.name}...`, 'info');
-                try {
-                    const result = await uploadChunkedFile(file);
-                    uploadedChunks.push(result);
-                } catch (err) {
-                    showToast(`文件 ${file.name} 上传失败: ` + err.message, 'error');
-                    submitButton.disabled = false;
-                    submitButton.textContent = originalButtonText;
-                    return;
-                }
-            } else {
-                smallFiles.push(file);
-                totalSmallSize += file.size;
-            }
-        }
+        // Process new files (using shared chunked logic)
+        const { uploadedChunks, smallFiles } = await processFilesForUpload(editSelectedFiles);
         
         const formData = new FormData();
         formData.append('content', content);
