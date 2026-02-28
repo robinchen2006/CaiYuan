@@ -12,9 +12,6 @@
         <header class="header">
             <div class="header-left">
                 <h1>我的小菜园</h1>
-                <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="toggleSidebar()">
-                    ☰
-                </button>
             </div>
             <div class="header-right">
                 <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
@@ -26,30 +23,13 @@
         
         <!-- Main Content -->
         <div class="main-content">
-            <!-- Sidebar -->
-            <aside class="sidebar" id="sidebar">
-                <div class="sidebar-header">
-                    <div class="sidebar-title-row">
-                        <h2>品类管理</h2>
-                        <button class="btn btn-sm btn-outline btn-collapse-groups" onclick="toggleGroupList()" title="折叠品类">
-                            <span id="collapseIcon">▼</span>
-                        </button>
-                    </div>
-                    <button class="btn btn-sm btn-primary" onclick="showCreateGroupModal()">
-                        + 新建品类
-                    </button>
-                </div>
-                <div class="group-list" id="groupList">
-                    <!-- Groups will be loaded here -->
-                </div>
-            </aside>
-            
             <!-- Content Area -->
             <main class="content">
                 <!-- Tabs -->
                 <div class="tabs">
                     <button class="tab active" data-tab="record" onclick="switchTab('record')">记录笔记</button>
                     <button class="tab" data-tab="browse" onclick="switchTab('browse')">浏览笔记</button>
+                    <button class="tab" data-tab="groups" onclick="switchTab('groups')">品类管理</button>
                     {% if role == 'admin' %}
                     <button class="tab" data-tab="admin" onclick="switchTab('admin')">管理面板</button>
                     {% endif %}
@@ -91,6 +71,23 @@
                             </div>
                             <button type="submit" class="btn btn-primary">保存笔记</button>
                         </form>
+                    </div>
+                </div>
+                
+                <!-- Groups Tab (Formerly Sidebar) -->
+                <div class="tab-content" id="groupsTab">
+                    <div class="card">
+                        <div class="sidebar-header" style="border-bottom: none; margin-bottom: 20px;">
+                            <div class="sidebar-title-row">
+                                <h3 style="margin-bottom: 0;">品类管理</h3>
+                            </div>
+                            <button class="btn btn-sm btn-primary" onclick="showCreateGroupModal()">
+                                + 新建品类
+                            </button>
+                        </div>
+                        <div class="group-list" id="groupList">
+                            <!-- Groups will be loaded here -->
+                        </div>
                     </div>
                 </div>
                 
