@@ -5,6 +5,7 @@ import sqlite3
 import os
 import json
 import logging
+import shutil
 from logging.handlers import RotatingFileHandler
 from datetime import datetime
 from functools import wraps
@@ -12,7 +13,8 @@ from functools import wraps
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-change-in-production'
 app.config['UPLOAD_FOLDER'] = 'static/uploads'
-app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.config['UPLOAD_TEMP_FOLDER'] = os.path.join(app.config['UPLOAD_FOLDER'], 'temp')
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max request size
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
 # Configure logging
@@ -30,6 +32,7 @@ app.logger.info('CaiYuan startup')
 
 # Ensure upload folder exists
 os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+os.makedirs(app.config['UPLOAD_TEMP_FOLDER'], exist_ok=True)
 
 
 def get_db():
@@ -778,7 +781,13 @@ def create_note():
         return jsonify({'error': '请填写日期和品类'}), 400
     
     files = request.files.getlist('images')
-    has_images = any(f.filename for f in files)
+    uploaded_chunks_json = request.form.get('uploaded_chunks', '[]')
+    try:
+        uploaded_chunks = json.loads(uploaded_chunks_json)
+    except Exception:
+        uploaded_chunks = []
+        
+    has_images = any(f.filename for f in files) or len(uploaded_chunks) > 0
     
     if not content and not has_images:
         return jsonify({'error': '请输入笔记内容或上传图片'}), 400
@@ -796,6 +805,26 @@ def create_note():
         note_id = cursor.lastrowid
         
         saved_images = []
+        
+        # Process pre-uploaded chunked files
+        for chunk_file in uploaded_chunks:
+            if chunk_file and 'filename' in chunk_file:
+                # filename is relative path like "username/123_abc.jpg"
+                filename = chunk_file['filename']
+                original_filename = chunk_file.get('original_filename', 'image')
+                
+                cursor.execute('''
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                
+                saved_images.append({
+                    'id': cursor.lastrowid,
+                    'filename': filename,
+                    'original_filename': original_filename
+                })
+        
+        # Process standard file uploads
         for file in files:
             if file and file.filename and allowed_file(file.filename):
                 original_filename = secure_filename(file.filename) or 'image'
@@ -861,11 +890,17 @@ def update_note(note_id):
     
     try:
         keep_image_ids = json.loads(keep_images)
-    except:
+    except Exception:
         keep_image_ids = []
     
     files = request.files.getlist('images')
-    has_new_images = any(f.filename for f in files)
+    uploaded_chunks_json = request.form.get('uploaded_chunks', '[]')
+    try:
+        uploaded_chunks = json.loads(uploaded_chunks_json)
+    except Exception:
+        uploaded_chunks = []
+        
+    has_new_images = any(f.filename for f in files) or len(uploaded_chunks) > 0
     
     if not content and not keep_image_ids and not has_new_images:
         return jsonify({'error': '请输入笔记内容或保留/上传图片'}), 400
@@ -917,6 +952,19 @@ def update_note(note_id):
         
         # Save new images
         saved_images = []
+        
+        # Process pre-uploaded chunked files
+        for chunk_file in uploaded_chunks:
+            if chunk_file and 'filename' in chunk_file:
+                filename = chunk_file['filename']
+                original_filename = chunk_file.get('original_filename', 'image')
+                
+                cursor.execute('''
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                saved_images.append({'id': cursor.lastrowid, 'filename': filename})
+        
         for file in files:
             if file and file.filename and allowed_file(file.filename):
                 original_filename = secure_filename(file.filename) or 'image'
@@ -1033,6 +1081,96 @@ def delete_note_image(note_id, image_id):
     conn.close()
     
     return jsonify({'message': '图片删除成功'})
+
+
+# ============ Chunked Upload API ============
+
+@app.route('/api/upload/chunk', methods=['POST'])
+@login_required
+def upload_chunk():
+    """Handle chunked file upload"""
+    file = request.files.get('file')
+    if not file:
+        return jsonify({'error': 'No file part'}), 400
+
+    file_uuid = request.form.get('dzuuid')
+    chunk_index = request.form.get('dzchunkindex')
+    
+    if not file_uuid or chunk_index is None:
+        return jsonify({'error': 'Missing chunk metadata'}), 400
+
+    # Secure uuid to prevent directory traversal
+    file_uuid = secure_filename(file_uuid)
+    
+    # Create temp directory for this file
+    temp_dir = os.path.join(app.config['UPLOAD_TEMP_FOLDER'], file_uuid)
+    os.makedirs(temp_dir, exist_ok=True)
+
+    # Save the chunk
+    chunk_filename = f"part_{chunk_index}"
+    file.save(os.path.join(temp_dir, chunk_filename))
+    
+    return jsonify({'message': 'Chunk uploaded successfully'})
+
+
+@app.route('/api/upload/merge', methods=['POST'])
+@login_required
+def merge_chunks():
+    """Merge uploaded chunks into a single file"""
+    data = request.get_json()
+    file_uuid = data.get('dzuuid')
+    filename = data.get('filename')
+    total_chunks = data.get('dztotalchunkcount')
+    
+    if not file_uuid or not filename or total_chunks is None:
+        return jsonify({'error': 'Missing merge metadata'}), 400
+        
+    file_uuid = secure_filename(file_uuid)
+    filename = secure_filename(filename)
+    
+    temp_dir = os.path.join(app.config['UPLOAD_TEMP_FOLDER'], file_uuid)
+    if not os.path.exists(temp_dir):
+        return jsonify({'error': 'Upload session not found'}), 404
+        
+    # Check if all chunks exist
+    for i in range(total_chunks):
+        if not os.path.exists(os.path.join(temp_dir, f"part_{i}")):
+            return jsonify({'error': f'Missing chunk {i}'}), 400
+            
+    # Create user directory if not exists
+    current_username = secure_filename(session.get('username', 'shared'))
+    if not current_username:
+        current_username = 'user_' + str(session.get('user_id', 'unknown'))
+    
+    user_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_username)
+    os.makedirs(user_folder, exist_ok=True)
+    
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
+    name = f"{session['user_id']}_{timestamp}_{filename}"
+    filepath = os.path.join(user_folder, name)
+    
+    try:
+        with open(filepath, 'wb') as final_file:
+            for i in range(total_chunks):
+                chunk_path = os.path.join(temp_dir, f"part_{i}")
+                with open(chunk_path, 'rb') as chunk_file:
+                    final_file.write(chunk_file.read())
+                    
+        # Clean up temp files
+        shutil.rmtree(temp_dir)
+        
+        # Return the relative path for saving to DB + filename
+        relative_path = f"{current_username}/{name}"
+        
+        return jsonify({
+            'message': 'File merged successfully',
+            'filename': relative_path,
+            'original_filename': filename
+        })
+        
+    except Exception as e:
+        app.logger.error(f'Error merging file {filename}: {str(e)}')
+        return jsonify({'error': 'Merge failed'}), 500
 
 
 # ============ User Info API ============

@@ -358,6 +358,72 @@ function removeEditSelectedImage(index) {
     renderEditImagePreviews();
 }
 
+
+// ============ Chunked Upload ============
+
+function generateUUID() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+        var r = Math.random() * 16 | 0, v = c == 'x' ? r : (r & 0x3 | 0x8);
+        return v.toString(16);
+    });
+}
+
+async function uploadChunkedFile(file, onProgress) {
+    const CHUNK_SIZE = 4 * 1024 * 1024; // 4MB Chunk
+    const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+    
+    // UUID for this file upload session
+    const fileUuid = generateUUID();
+    
+    for (let i = 0; i < totalChunks; i++) {
+        const start = i * CHUNK_SIZE;
+        const end = Math.min(file.size, start + CHUNK_SIZE);
+        const chunk = file.slice(start, end);
+        
+        const chunkFormData = new FormData();
+        chunkFormData.append('file', chunk);
+        chunkFormData.append('dzuuid', fileUuid);
+        chunkFormData.append('dzchunkindex', i);
+        chunkFormData.append('dztotalchunkcount', totalChunks); // Ensure consistent casing
+        
+        try {
+            const response = await fetch('/api/upload/chunk', {
+                method: 'POST',
+                body: chunkFormData
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Upload failed for chunk ${i}`);
+            }
+            
+            if (onProgress) {
+                onProgress((i + 1) / totalChunks * 100);
+            }
+        } catch (error) {
+            console.error('Chunk upload error:', error);
+            throw error;
+        }
+    }
+    
+    // Merge
+    const mergeResponse = await fetch('/api/upload/merge', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            dzuuid: fileUuid,
+            filename: file.name,
+            dztotalchunkcount: totalChunks
+        })
+    });
+    
+    if (!mergeResponse.ok) {
+        throw new Error('Merge failed');
+    }
+    
+    return await mergeResponse.json();
+}
+
 // ============ Form Handlers ============
 
 function setupFormHandlers() {
@@ -379,16 +445,52 @@ function setupFormHandlers() {
             return;
         }
         
-        const formData = new FormData();
-        formData.append('content', content);
-        formData.append('date', date);
-        formData.append('group_id', groupId);
-        
-        selectedFiles.forEach(file => {
-            formData.append('images', file);
-        });
+        // Handle file uploads (chunked for large files or many files)
+        // Reduce threshold to catch accumulated small files too, or just chunk everything > 1MB safely
+        const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB
+        const uploadedChunks = [];
+        const smallFiles = [];
+        let totalSmallSize = 0;
+        const MAX_BATCH_SIZE = 10 * 1024 * 1024; // 10MB limit for non-chunked batch
+
+        const submitButton = document.querySelector('#noteForm button[type="submit"]');
+        const originalButtonText = submitButton.textContent;
+        submitButton.disabled = true;
+        submitButton.textContent = '上传中...';
         
         try {
+            // Process files
+            for (const file of selectedFiles) {
+                // Determine if we should chunk this file
+                // 1. It is individually large (>5MB)
+                // 2. OR adding it to the batch would exceed the safe batch size
+                if (file.size > CHUNK_THRESHOLD || (totalSmallSize + file.size > MAX_BATCH_SIZE)) {
+                    showToast(`正在分块上传: ${file.name}...`, 'info');
+                    try {
+                        const result = await uploadChunkedFile(file);
+                        uploadedChunks.push(result);
+                    } catch (err) {
+                        showToast(`文件 ${file.name} 上传失败: ` + err.message, 'error');
+                        submitButton.disabled = false;
+                        submitButton.textContent = originalButtonText;
+                        return;
+                    }
+                } else {
+                    smallFiles.push(file);
+                    totalSmallSize += file.size;
+                }
+            }
+            
+            const formData = new FormData();
+            formData.append('content', content);
+            formData.append('date', date);
+            formData.append('group_id', groupId);
+            formData.append('uploaded_chunks', JSON.stringify(uploadedChunks));
+            
+            smallFiles.forEach(file => {
+                formData.append('images', file);
+            });
+            
             const response = await fetch('/api/notes', {
                 method: 'POST',
                 body: formData
@@ -406,7 +508,10 @@ function setupFormHandlers() {
                 showToast(data.error || '保存失败', 'error');
             }
         } catch (error) {
-            showToast('保存失败', 'error');
+            showToast('保存失败: ' + error.message, 'error');
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = originalButtonText;
         }
     });
 }
@@ -561,17 +666,50 @@ async function updateNote() {
         return;
     }
     
-    const formData = new FormData();
-    formData.append('content', content);
-    formData.append('date', date);
-    formData.append('group_id', groupId);
-    formData.append('keep_images', JSON.stringify(editKeepImageIds));
+    // Handle file uploads (chunked for large files or batch size)
+    const CHUNK_THRESHOLD = 5 * 1024 * 1024; // 5MB
+    const MAX_BATCH_SIZE = 10 * 1024 * 1024; // 10MB limit for non-chunked batch
+    const uploadedChunks = [];
+    const smallFiles = [];
+    let totalSmallSize = 0;
     
-    editSelectedFiles.forEach(file => {
-        formData.append('images', file);
-    });
+    const submitButton = document.querySelector('#editNoteModal .btn-primary'); // Assuming it's the primary button
+    const originalButtonText = submitButton.textContent;
+    submitButton.disabled = true;
+    submitButton.textContent = '更新中...';
     
     try {
+        // Process new files
+        for (const file of editSelectedFiles) {
+            // Determine if we should chunk
+            if (file.size > CHUNK_THRESHOLD || (totalSmallSize + file.size > MAX_BATCH_SIZE)) {
+                showToast(`正在分块上传: ${file.name}...`, 'info');
+                try {
+                    const result = await uploadChunkedFile(file);
+                    uploadedChunks.push(result);
+                } catch (err) {
+                    showToast(`文件 ${file.name} 上传失败: ` + err.message, 'error');
+                    submitButton.disabled = false;
+                    submitButton.textContent = originalButtonText;
+                    return;
+                }
+            } else {
+                smallFiles.push(file);
+                totalSmallSize += file.size;
+            }
+        }
+        
+        const formData = new FormData();
+        formData.append('content', content);
+        formData.append('date', date);
+        formData.append('group_id', groupId);
+        formData.append('keep_images', JSON.stringify(editKeepImageIds));
+        formData.append('uploaded_chunks', JSON.stringify(uploadedChunks));
+        
+        smallFiles.forEach(file => {
+            formData.append('images', file);
+        });
+        
         const response = await fetch(`/api/notes/${noteId}`, {
             method: 'PUT',
             body: formData
@@ -587,7 +725,10 @@ async function updateNote() {
             showToast(data.error || '更新失败', 'error');
         }
     } catch (error) {
-        showToast('更新失败', 'error');
+        showToast('更新失败: ' + error.message, 'error');
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalButtonText;
     }
 }
 
