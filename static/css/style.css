@@ -232,6 +232,7 @@ body {
     display: flex;
     align-items: center;
     gap: 20px;
+    font-size: 0.85rem;
 }
 
 .username {
@@ -791,7 +792,6 @@ body {
     padding: 4px 12px;
     border-radius: 20px;
     font-size: 0.85rem;
-    margin-left: 15px;
 }
 
 .header-left {
@@ -952,10 +952,7 @@ body {
         align-items: flex-start;
     }
     
-    .team-badge {
-        margin-left: 0;
-        margin-top: 5px;
-    }
+    /* Removed .team-badge style as it is now in header-right which handles layout */
     
     .header-right {
         flex-wrap: wrap;

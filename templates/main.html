@@ -11,14 +11,14 @@
         <!-- Header -->
         <header class="header">
             <div class="header-left">
+                <h1>我的小菜园</h1>
                 <button id="mobileMenuBtn" class="mobile-menu-btn" onclick="toggleSidebar()">
                     ☰
                 </button>
-                <h1>我的小菜园</h1>
-                <span id="teamBadge" class="team-badge" style="display: none;"></span>
             </div>
             <div class="header-right">
                 <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
+                <span id="teamBadge" class="team-badge" style="display: none;"></span>
                 <button class="btn btn-sm btn-outline btn-header" onclick="showChangePasswordModal()">修改密码</button>
                 <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline btn-header">退出登录</a>
             </div>
