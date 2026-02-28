@@ -767,9 +767,26 @@ def create_note():
             if file and file.filename and allowed_file(file.filename):
                 original_filename = secure_filename(file.filename) or 'image'
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-                filename = f"{session['user_id']}_{timestamp}_{original_filename}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                # Create user directory if not exists
+                # Sanitize username for directory name security
+                username = secure_filename(session.get('username', 'shared'))
+                if not username:
+                    username = 'user_' + str(session.get('user_id', 'unknown'))
+                
+                user_folder = os.path.join(app.config['UPLOAD_FOLDER'], username)
+                os.makedirs(user_folder, exist_ok=True)
+                
+                # Filename without path
+                name = f"{session['user_id']}_{timestamp}_{original_filename}"
+                
+                # Save file
+                filepath = os.path.join(user_folder, name)
                 file.save(filepath)
+                
+                # Update filename to include user path for access
+                # Use forward slash for web URL compatibility
+                filename = f"{username}/{name}"
                 
                 cursor.execute('''
                     INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
@@ -869,9 +886,25 @@ def update_note(note_id):
             if file and file.filename and allowed_file(file.filename):
                 original_filename = secure_filename(file.filename) or 'image'
                 timestamp = datetime.now().strftime('%Y%m%d_%H%M%S_%f')
-                filename = f"{session['user_id']}_{timestamp}_{original_filename}"
-                filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                
+                # Create user directory if not exists
+                # Sanitize username for directory name security
+                current_username = secure_filename(session.get('username', 'shared'))
+                if not current_username:
+                    current_username = 'user_' + str(session.get('user_id', 'unknown'))
+                
+                user_folder = os.path.join(app.config['UPLOAD_FOLDER'], current_username)
+                os.makedirs(user_folder, exist_ok=True)
+                
+                # Filename without path
+                name = f"{session['user_id']}_{timestamp}_{original_filename}"
+                
+                # Save file
+                filepath = os.path.join(user_folder, name)
                 file.save(filepath)
+                
+                # Filename with relative path
+                filename = f"{current_username}/{name}"
                 
                 cursor.execute('''
                     INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
