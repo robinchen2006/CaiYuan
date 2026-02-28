@@ -20,7 +20,7 @@
                 {% endif %}
             {% endwith %}
             
-            <form method="POST" action="{{ url_for('login') }}">
+            <form method="POST" action="{{ url_for('auth.login') }}">
                 <div class="form-group">
                     <label for="username">用户名</label>
                     <input type="text" id="username" name="username" required placeholder="请输入用户名">
@@ -33,7 +33,7 @@
             </form>
             
             <div class="auth-links">
-                <p>没有账号？<a href="{{ url_for('register') }}">立即注册</a></p>
+                <p>没有账号？<a href="{{ url_for('auth.register') }}">立即注册</a></p>
             </div>
             
             <!-- <div class="default-account">

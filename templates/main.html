@@ -17,7 +17,7 @@
                 <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
                 <span id="teamBadge" class="team-badge" style="display: none;"></span>
                 <button class="btn btn-sm btn-outline btn-header" onclick="showChangePasswordModal()">修改密码</button>
-                <a href="{{ url_for('logout') }}" class="btn btn-sm btn-outline btn-header">退出登录</a>
+                <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline btn-header">退出登录</a>
             </div>
         </header>
         
