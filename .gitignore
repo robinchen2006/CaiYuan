@@ -7,3 +7,5 @@ static/uploads
 .venv/
 logs/
 nohup.out
+__pycache__/
+*.pyc
