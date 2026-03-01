@@ -301,6 +301,49 @@ async function createThumbnail(file) {
     if (!file.type.startsWith('image/')) {
         return URL.createObjectURL(file);
     }
+
+    // Try using createImageBitmap for better performance if available
+    if (window.createImageBitmap) {
+        try {
+            const img = await createImageBitmap(file);
+            const MAX_WIDTH = 150;
+            const MAX_HEIGHT = 150;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height = Math.round(height * (MAX_WIDTH / width));
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width = Math.round(width * (MAX_HEIGHT / height));
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            img.close(); // Release memory immediately
+            
+            return new Promise((resolve, reject) => {
+                canvas.toBlob((blob) => {
+                    if (blob) {
+                        resolve(URL.createObjectURL(blob));
+                    } else {
+                        reject(new Error('Thumbnail generation failed'));
+                    }
+                }, file.type, 0.7);
+            });
+        } catch (e) {
+            console.warn('createImageBitmap failed, falling back to Image()', e);
+        }
+    }
     
     return new Promise((resolve, reject) => {
         const url = URL.createObjectURL(file);
@@ -356,42 +399,87 @@ function setupImageSelection() {
     const noteImagesInput = document.getElementById('noteImages');
     noteImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
+        const submitButton = document.querySelector('#noteForm button[type="submit"]');
+        const originalText = submitButton.textContent;
         
-        for (const file of files) {
-            // Check based on file object properties
-            if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
-                try {
-                    const thumbnail = await createThumbnail(file);
-                    selectedFiles.push({ file, thumbnail });
-                } catch (err) {
-                    console.error('Thumbnail error', err);
-                    // Fallback to original file blob if thumbnail fails (though unlikely)
-                    selectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+        if (files.length === 0) return;
+
+        submitButton.disabled = true;
+        submitButton.textContent = '处理图片中...';
+        
+        try {
+            for (const file of files) {
+                // Check based on file object properties
+                if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                    try {
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        const thumbnail = await createThumbnail(file);
+                        selectedFiles.push({ file, thumbnail });
+                    } catch (err) {
+                        console.error('Thumbnail error', err);
+                        // Fallback to original file blob if thumbnail fails (though unlikely)
+                        selectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                    }
                 }
             }
+            renderImagePreviews();
+        } finally {
+            submitButton.disabled = false;
+            submitButton.textContent = originalText;
+            e.target.value = '';
         }
-        renderImagePreviews();
-        // Clear input so same file can be selected again if removed
-        e.target.value = '';
     });
     
     // For editing notes
     const editImagesInput = document.getElementById('editNoteImages');
     editImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
+        const submitButton = document.querySelector('#editNoteModal .btn-primary');
+        const originalText = submitButton.textContent; // Store original text "保存"
         
-        for (const file of files) {
-            if (!editSelectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
-                try {
-                    const thumbnail = await createThumbnail(file);
-                    editSelectedFiles.push({ file, thumbnail });
-                } catch (err) {
-                    editSelectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+        if (files.length === 0) return;
+        
+        submitButton.disabled = true;
+        submitButton.textContent = '处理图片中...';
+        
+        try {
+            for (const file of files) {
+                // Check if modal is still open before continuing heavy work
+                if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                    break;
+                }
+                
+                if (!editSelectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                    try {
+                        // Yield to UI thread to allow button updates to render
+                        await new Promise(resolve => setTimeout(resolve, 0));
+                        const thumbnail = await createThumbnail(file);
+                        
+                        // Check again after heavy work
+                        if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                            break;
+                        }
+
+                        editSelectedFiles.push({ file, thumbnail });
+                    } catch (err) {
+                         if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                            break;
+                        }
+                        editSelectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                    }
                 }
             }
+            
+            if (document.getElementById('editNoteModal').classList.contains('show')) {
+                renderEditImagePreviews();
+            }
+        } finally {
+            if (document.getElementById('editNoteModal').classList.contains('show')) {
+                submitButton.textContent = '保存'; // Restore to "保存" explicitly or use stored original
+                submitButton.disabled = false;
+            }
+            e.target.value = '';
         }
-        renderEditImagePreviews();
-        e.target.value = '';
     });
 }
 
