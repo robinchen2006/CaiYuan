@@ -296,39 +296,113 @@ async function deleteGroup(groupId) {
 
 // ============ Image Selection ============
 
+// Helper to create thumbnails
+async function createThumbnail(file) {
+    if (!file.type.startsWith('image/')) {
+        return URL.createObjectURL(file);
+    }
+    
+    return new Promise((resolve, reject) => {
+        const url = URL.createObjectURL(file);
+        const img = new Image();
+        
+        img.onload = () => {
+            URL.revokeObjectURL(url);
+            
+            const MAX_WIDTH = 150;
+            const MAX_HEIGHT = 150;
+            let width = img.width;
+            let height = img.height;
+
+            if (width > height) {
+                if (width > MAX_WIDTH) {
+                    height = Math.round(height * (MAX_WIDTH / width));
+                    width = MAX_WIDTH;
+                }
+            } else {
+                if (height > MAX_HEIGHT) {
+                    width = Math.round(width * (MAX_HEIGHT / height));
+                    height = MAX_HEIGHT;
+                }
+            }
+
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            
+            canvas.toBlob((blob) => {
+                if (blob) {
+                    resolve(URL.createObjectURL(blob));
+                } else {
+                    reject(new Error('Thumbnail generation failed'));
+                }
+            }, file.type, 0.7);
+        };
+        
+        img.onerror = () => {
+            URL.revokeObjectURL(url);
+            reject(new Error('Image load failed'));
+        };
+        
+        img.src = url;
+    });
+}
+
 function setupImageSelection() {
     // For creating notes
     const noteImagesInput = document.getElementById('noteImages');
-    noteImagesInput.addEventListener('change', function(e) {
+    noteImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
-        files.forEach(file => {
-            if (!selectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                selectedFiles.push(file);
+        
+        for (const file of files) {
+            // Check based on file object properties
+            if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                try {
+                    const thumbnail = await createThumbnail(file);
+                    selectedFiles.push({ file, thumbnail });
+                } catch (err) {
+                    console.error('Thumbnail error', err);
+                    // Fallback to original file blob if thumbnail fails (though unlikely)
+                    selectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                }
             }
-        });
+        }
         renderImagePreviews();
+        // Clear input so same file can be selected again if removed
+        e.target.value = '';
     });
     
     // For editing notes
     const editImagesInput = document.getElementById('editNoteImages');
-    editImagesInput.addEventListener('change', function(e) {
+    editImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
-        files.forEach(file => {
-            if (!editSelectedFiles.some(f => f.name === file.name && f.size === file.size)) {
-                editSelectedFiles.push(file);
+        
+        for (const file of files) {
+            if (!editSelectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                try {
+                    const thumbnail = await createThumbnail(file);
+                    editSelectedFiles.push({ file, thumbnail });
+                } catch (err) {
+                    editSelectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                }
             }
-        });
+        }
         renderEditImagePreviews();
+        e.target.value = '';
     });
 }
 
 function renderImagePreviews() {
     const container = document.getElementById('imagePreviewList');
-    container.innerHTML = selectedFiles.map((file, index) => {
-        const url = URL.createObjectURL(file);
+    container.innerHTML = selectedFiles.map((item, index) => {
+        // Use the generated thumbnail
+        const url = item.thumbnail;
         return `
             <div class="image-preview-item">
-                <img src="${url}" alt="${escapeHtml(file.name)}">
+                <img src="${url}" alt="${escapeHtml(item.file.name)}">
                 <button type="button" class="remove-btn" onclick="removeSelectedImage(${index})">×</button>
             </div>
         `;
@@ -336,17 +410,20 @@ function renderImagePreviews() {
 }
 
 function removeSelectedImage(index) {
+    if (selectedFiles[index] && selectedFiles[index].thumbnail) {
+        URL.revokeObjectURL(selectedFiles[index].thumbnail);
+    }
     selectedFiles.splice(index, 1);
     renderImagePreviews();
 }
 
 function renderEditImagePreviews() {
     const container = document.getElementById('editImagePreviewList');
-    container.innerHTML = editSelectedFiles.map((file, index) => {
-        const url = URL.createObjectURL(file);
+    container.innerHTML = editSelectedFiles.map((item, index) => {
+        const url = item.thumbnail;
         return `
             <div class="image-preview-item">
-                <img src="${url}" alt="${escapeHtml(file.name)}">
+                <img src="${url}" alt="${escapeHtml(item.file.name)}">
                 <button type="button" class="remove-btn" onclick="removeEditSelectedImage(${index})">×</button>
             </div>
         `;
@@ -354,6 +431,9 @@ function renderEditImagePreviews() {
 }
 
 function removeEditSelectedImage(index) {
+    if (editSelectedFiles[index] && editSelectedFiles[index].thumbnail) {
+        URL.revokeObjectURL(editSelectedFiles[index].thumbnail);
+    }
     editSelectedFiles.splice(index, 1);
     renderEditImagePreviews();
 }
@@ -482,7 +562,8 @@ function setupFormHandlers() {
         
         try {
             // Process files (using shared chunked logic)
-            const { uploadedChunks, smallFiles } = await processFilesForUpload(selectedFiles);
+            const filesToUpload = selectedFiles.map(item => item.file);
+            const { uploadedChunks, smallFiles } = await processFilesForUpload(filesToUpload);
             
             const formData = new FormData();
             formData.append('content', content);
@@ -682,7 +763,8 @@ async function updateNote() {
     
     try {
         // Process new files (using shared chunked logic)
-        const { uploadedChunks, smallFiles } = await processFilesForUpload(editSelectedFiles);
+        const filesToUpload = editSelectedFiles.map(item => item.file);
+        const { uploadedChunks, smallFiles } = await processFilesForUpload(filesToUpload);
         
         const formData = new FormData();
         formData.append('content', content);
