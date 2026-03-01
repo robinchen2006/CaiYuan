@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import session, redirect, url_for, jsonify, current_app
 import os
-from PIL import Image
+from PIL import Image, ImageOps
 
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif'}
 
@@ -21,6 +21,12 @@ def convert_to_progressive_jpeg(filepath):
         temp_filepath = base_name + ".temp.jpg"
 
         with Image.open(filepath) as img:
+            # Fix orientation based on EXIF data
+            try:
+                img = ImageOps.exif_transpose(img)
+            except Exception:
+                pass
+                
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
             img.save(temp_filepath, "JPEG", quality=85, optimize=True, progressive=True)
@@ -64,6 +70,12 @@ def create_thumbnail(image_path, size=(300, 300)):
         thumb_path = os.path.join(dirname, thumb_filename)
         
         with Image.open(image_path) as img:
+            # Fix orientation based on EXIF data
+            try:
+                img = ImageOps.exif_transpose(img)
+            except Exception:
+                pass
+
             # Convert to RGB if necessary (e.g. for PNG with transparency if saving as JPG, though we'll keep format)
             if img.mode in ('RGBA', 'P'):
                 img = img.convert('RGB')
