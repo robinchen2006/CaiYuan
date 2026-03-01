@@ -140,6 +140,10 @@ async function loadGroups() {
     try {
         const response = await fetch('/api/groups');
         currentGroups = await response.json();
+        
+        // Sort groups alphabetically by name
+        currentGroups.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN'));
+        
         renderGroupList();
         updateGroupSelects();
     } catch (error) {
