@@ -723,11 +723,13 @@ body {
     transform: translateY(20px);
     transition: all 0.3s;
     z-index: 2000;
+    pointer-events: none;
 }
 
 .toast.show {
     opacity: 1;
     transform: translateY(0);
+    pointer-events: auto;
 }
 
 .toast.success {
