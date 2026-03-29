@@ -115,7 +115,36 @@ function showEditGroupModal(groupId, groupName) {
 
 // ============ Tab Functions ============
 
+function hasSelectOption(select, value) {
+    return Array.from(select.options).some(option => option.value === value);
+}
+
+function syncGroupSelectionOnTabSwitch(targetTabName) {
+    const noteGroupSelect = document.getElementById('noteGroup');
+    const browseGroupSelect = document.getElementById('browseGroup');
+
+    if (!noteGroupSelect || !browseGroupSelect) {
+        return;
+    }
+
+    if (targetTabName === 'browse') {
+        const sourceValue = noteGroupSelect.value;
+        if (hasSelectOption(browseGroupSelect, sourceValue)) {
+            browseGroupSelect.value = sourceValue;
+        }
+    }
+
+    if (targetTabName === 'record') {
+        const sourceValue = browseGroupSelect.value;
+        if (hasSelectOption(noteGroupSelect, sourceValue)) {
+            noteGroupSelect.value = sourceValue;
+        }
+    }
+}
+
 function switchTab(tabName) {
+    syncGroupSelectionOnTabSwitch(tabName);
+
     // Update tab buttons
     document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.remove('active');
@@ -1033,6 +1062,8 @@ async function changePassword() {
 // Tab switching for admin
 const originalSwitchTab = switchTab;
 switchTab = function(tabName) {
+    syncGroupSelectionOnTabSwitch(tabName);
+
     // Update tab buttons
     document.querySelectorAll('.tab').forEach(tab => {
         tab.classList.remove('active');
