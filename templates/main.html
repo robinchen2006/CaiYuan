@@ -60,8 +60,12 @@
                                 <label>添加图片（可多选）</label>
                                 <div class="image-upload-area" id="imageUploadArea">
                                     <input type="file" id="noteImages" accept="image/*" multiple hidden>
+                                    <input type="file" id="noteCameraInput" accept="image/*" capture="environment" hidden>
                                     <button type="button" class="btn btn-outline" onclick="document.getElementById('noteImages').click()">
                                         📷 选择图片
+                                    </button>
+                                    <button type="button" class="btn btn-outline" onclick="openCameraCapture('note')">
+                                        📸 拍照
                                     </button>
                                     <span class="upload-hint">支持 PNG、JPG、GIF 格式</span>
                                 </div>
@@ -229,8 +233,12 @@
                     <label>添加新图片</label>
                     <div class="image-upload-area">
                         <input type="file" id="editNoteImages" accept="image/*" multiple hidden>
+                        <input type="file" id="editCameraInput" accept="image/*" capture="environment" hidden>
                         <button type="button" class="btn btn-outline" onclick="document.getElementById('editNoteImages').click()">
                             📷 选择图片
+                        </button>
+                        <button type="button" class="btn btn-outline" onclick="openCameraCapture('edit')">
+                            📸 拍照
                         </button>
                     </div>
                     <div class="image-preview-list" id="editImagePreviewList">

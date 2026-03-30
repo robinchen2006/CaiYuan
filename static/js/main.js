@@ -99,6 +99,7 @@ function closeModal(modalId) {
         editKeepImageIds = [];
         document.getElementById('editImagePreviewList').innerHTML = '';
         document.getElementById('editNoteImages').value = '';
+        document.getElementById('editCameraInput').value = '';
     }
 }
 
@@ -427,92 +428,136 @@ async function createThumbnail(file) {
     });
 }
 
+function isMobileDevice() {
+    const ua = navigator.userAgent || navigator.vendor || window.opera;
+    return /android|iphone|ipad|ipod|mobile/i.test(ua) || navigator.maxTouchPoints > 1;
+}
+
+async function processNoteFiles(files) {
+    const submitButton = document.querySelector('#noteForm button[type="submit"]');
+    const originalText = submitButton.textContent;
+
+    if (files.length === 0) return;
+
+    submitButton.disabled = true;
+    submitButton.textContent = '处理图片中...';
+
+    try {
+        for (const file of files) {
+            if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    const thumbnail = await createThumbnail(file);
+                    selectedFiles.push({ file, thumbnail });
+                } catch (err) {
+                    console.error('Thumbnail error', err);
+                    selectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                }
+            }
+        }
+        renderImagePreviews();
+    } finally {
+        submitButton.disabled = false;
+        submitButton.textContent = originalText;
+    }
+}
+
+async function processEditFiles(files) {
+    const submitButton = document.querySelector('#editNoteModal .btn-primary');
+    const originalText = submitButton.textContent;
+
+    if (files.length === 0) return;
+
+    submitButton.disabled = true;
+    submitButton.textContent = '处理图片中...';
+
+    try {
+        for (const file of files) {
+            if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                break;
+            }
+
+            if (!editSelectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
+                try {
+                    await new Promise(resolve => setTimeout(resolve, 0));
+                    const thumbnail = await createThumbnail(file);
+
+                    if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                        break;
+                    }
+
+                    editSelectedFiles.push({ file, thumbnail });
+                } catch (err) {
+                    if (!document.getElementById('editNoteModal').classList.contains('show')) {
+                        break;
+                    }
+                    editSelectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
+                }
+            }
+        }
+
+        if (document.getElementById('editNoteModal').classList.contains('show')) {
+            renderEditImagePreviews();
+        }
+    } finally {
+        if (document.getElementById('editNoteModal').classList.contains('show')) {
+            submitButton.textContent = originalText;
+            submitButton.disabled = false;
+        }
+    }
+}
+
+function openCameraCapture(target) {
+    const isMobile = isMobileDevice();
+
+    if (target === 'note') {
+        if (isMobile) {
+            document.getElementById('noteCameraInput').click();
+        } else {
+            showToast('当前设备不是手机，已切换为选择图片');
+            document.getElementById('noteImages').click();
+        }
+        return;
+    }
+
+    if (target === 'edit') {
+        if (isMobile) {
+            document.getElementById('editCameraInput').click();
+        } else {
+            showToast('当前设备不是手机，已切换为选择图片');
+            document.getElementById('editNoteImages').click();
+        }
+    }
+}
+
 function setupImageSelection() {
-    // For creating notes
     const noteImagesInput = document.getElementById('noteImages');
+    const noteCameraInput = document.getElementById('noteCameraInput');
+    const editImagesInput = document.getElementById('editNoteImages');
+    const editCameraInput = document.getElementById('editCameraInput');
+
     noteImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
-        const submitButton = document.querySelector('#noteForm button[type="submit"]');
-        const originalText = submitButton.textContent;
-        
-        if (files.length === 0) return;
-
-        submitButton.disabled = true;
-        submitButton.textContent = '处理图片中...';
-        
-        try {
-            for (const file of files) {
-                // Check based on file object properties
-                if (!selectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
-                    try {
-                        await new Promise(resolve => setTimeout(resolve, 0));
-                        const thumbnail = await createThumbnail(file);
-                        selectedFiles.push({ file, thumbnail });
-                    } catch (err) {
-                        console.error('Thumbnail error', err);
-                        // Fallback to original file blob if thumbnail fails (though unlikely)
-                        selectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
-                    }
-                }
-            }
-            renderImagePreviews();
-        } finally {
-            submitButton.disabled = false;
-            submitButton.textContent = originalText;
-            e.target.value = '';
-        }
+        await processNoteFiles(files);
+        e.target.value = '';
     });
-    
-    // For editing notes
-    const editImagesInput = document.getElementById('editNoteImages');
+
+    noteCameraInput.addEventListener('change', async function(e) {
+        const files = Array.from(e.target.files);
+        await processNoteFiles(files);
+        e.target.value = '';
+    });
+
     editImagesInput.addEventListener('change', async function(e) {
         const files = Array.from(e.target.files);
-        const submitButton = document.querySelector('#editNoteModal .btn-primary');
-        const originalText = submitButton.textContent; // Store original text "保存"
-        
-        if (files.length === 0) return;
-        
-        submitButton.disabled = true;
-        submitButton.textContent = '处理图片中...';
-        
-        try {
-            for (const file of files) {
-                // Check if modal is still open before continuing heavy work
-                if (!document.getElementById('editNoteModal').classList.contains('show')) {
-                    break;
-                }
-                
-                if (!editSelectedFiles.some(item => item.file.name === file.name && item.file.size === file.size)) {
-                    try {
-                        // Yield to UI thread to allow button updates to render
-                        await new Promise(resolve => setTimeout(resolve, 0));
-                        const thumbnail = await createThumbnail(file);
-                        
-                        // Check again after heavy work
-                        if (!document.getElementById('editNoteModal').classList.contains('show')) {
-                            break;
-                        }
+        await processEditFiles(files);
+        e.target.value = '';
+    });
 
-                        editSelectedFiles.push({ file, thumbnail });
-                    } catch (err) {
-                         if (!document.getElementById('editNoteModal').classList.contains('show')) {
-                            break;
-                        }
-                        editSelectedFiles.push({ file, thumbnail: URL.createObjectURL(file) });
-                    }
-                }
-            }
-            
-            if (document.getElementById('editNoteModal').classList.contains('show')) {
-                renderEditImagePreviews();
-            }
-        } finally {
-            if (document.getElementById('editNoteModal').classList.contains('show')) {
-                submitButton.textContent = '保存'; // Restore to "保存" explicitly or use stored original
-                submitButton.disabled = false;
-            }
-            e.target.value = '';
-        }
+    editCameraInput.addEventListener('change', async function(e) {
+        const files = Array.from(e.target.files);
+        await processEditFiles(files);
+        e.target.value = '';
     });
 }
 
