@@ -818,6 +818,11 @@ body {
     padding-bottom: 10px;
 }
 
+.settings-desc {
+    color: var(--secondary-color);
+    margin-bottom: 12px;
+}
+
 /* Pending Users */
 .pending-users-list {
     display: flex;

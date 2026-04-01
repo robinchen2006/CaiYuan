@@ -18,7 +18,6 @@
                 <span id="teamBadge" class="team-badge" style="display: none;"></span>
                 <span id="projectBadge" class="team-badge" style="display: none;"></span>
                 <button class="btn btn-sm btn-outline btn-header" onclick="showSwitchProjectModal()">切换项目</button>
-                <button class="btn btn-sm btn-outline btn-header" onclick="showChangePasswordModal()">修改密码</button>
                 <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline btn-header">退出登录</a>
             </div>
         </header>
@@ -32,6 +31,7 @@
                     <button class="tab active" data-tab="record" onclick="switchTab('record')">记录笔记</button>
                     <button class="tab" data-tab="browse" onclick="switchTab('browse')">浏览笔记</button>
                     <button class="tab" data-tab="groups" onclick="switchTab('groups')">品类管理</button>
+                    <button class="tab" data-tab="settings" onclick="switchTab('settings')">用户设置</button>
                     {% if role == 'admin' %}
                     <button class="tab" data-tab="admin" onclick="switchTab('admin')">管理面板</button>
                     {% endif %}
@@ -112,6 +112,15 @@
                         <div class="notes-timeline" id="notesList">
                             <!-- Notes will be loaded here -->
                         </div>
+                    </div>
+                </div>
+
+                <!-- Settings Tab -->
+                <div class="tab-content" id="settingsTab">
+                    <div class="admin-section">
+                        <h3>用户管理</h3>
+                        <p class="settings-desc">管理当前账号信息与安全设置。</p>
+                        <button class="btn btn-primary btn-sm" onclick="showChangePasswordModal()">修改密码</button>
                     </div>
                 </div>
                 
