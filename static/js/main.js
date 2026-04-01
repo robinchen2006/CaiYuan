@@ -1049,7 +1049,7 @@ async function loadUserInfo() {
         if (user.team_name) {
             const teamBadge = document.getElementById('teamBadge');
             if (teamBadge) {
-                teamBadge.textContent = `组: ${user.team_name}`;
+                teamBadge.textContent = `${user.team_name}`;
                 teamBadge.style.display = 'inline-block';
             }
         }

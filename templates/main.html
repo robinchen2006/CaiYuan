@@ -14,7 +14,7 @@
                 <h1>我的小菜园</h1>
             </div>
             <div class="header-right">
-                <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
+                <span class="username">{{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
                 <span id="teamBadge" class="team-badge" style="display: none;"></span>
                 <span id="projectBadge" class="team-badge" style="display: none;"></span>
                 <button class="btn btn-sm btn-outline btn-header" onclick="showSwitchProjectModal()">切换项目</button>
