@@ -1049,7 +1049,7 @@ async function loadUserInfo() {
         if (user.team_name) {
             const teamBadge = document.getElementById('teamBadge');
             if (teamBadge) {
-                teamBadge.textContent = `用户组: ${user.team_name}`;
+                teamBadge.textContent = `组: ${user.team_name}`;
                 teamBadge.style.display = 'inline-block';
             }
         }
@@ -1061,7 +1061,7 @@ async function loadUserInfo() {
         if (user.current_project_name) {
             const projectBadge = document.getElementById('projectBadge');
             if (projectBadge) {
-                projectBadge.textContent = `项目: ${user.current_project_name}`;
+                projectBadge.textContent = `${user.current_project_name}`;
                 projectBadge.style.display = 'inline-block';
             }
         }
