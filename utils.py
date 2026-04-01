@@ -115,3 +115,26 @@ def admin_required(f):
 def get_user_team_id():
     """Get current user's team_id"""
     return session.get('team_id')
+
+def get_current_project_id():
+    """Get current project id from session, fallback to default project '种植'."""
+    project_id = session.get('current_project_id')
+    if project_id:
+        return project_id
+
+    # Lazy import avoids circular imports between utils and database modules.
+    from database import get_db
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id FROM projects WHERE name = ?', ('种植',))
+    project = cursor.fetchone()
+    if project:
+        session['current_project_id'] = project['id']
+        return project['id']
+
+    cursor.execute('SELECT id FROM projects ORDER BY id ASC LIMIT 1')
+    project = cursor.fetchone()
+    if project:
+        session['current_project_id'] = project['id']
+        return project['id']
+    return None

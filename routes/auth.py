@@ -6,6 +6,16 @@ import sqlite3
 
 auth_bp = Blueprint('auth', __name__)
 
+def get_default_project_id(cursor):
+    """Get default project id (legacy data belongs to '种植')."""
+    cursor.execute('SELECT id FROM projects WHERE name = ?', ('种植',))
+    project = cursor.fetchone()
+    if project:
+        return project['id']
+    cursor.execute('SELECT id FROM projects ORDER BY id ASC LIMIT 1')
+    project = cursor.fetchone()
+    return project['id'] if project else None
+
 @auth_bp.route('/')
 def index():
     """Redirect to main page or login"""
@@ -40,6 +50,15 @@ def login():
             session['username'] = user['username']
             session['role'] = user['role']
             session['team_id'] = user['team_id']
+            default_project_id = get_default_project_id(cursor)
+            current_project_id = user['current_project_id'] if user['current_project_id'] else default_project_id
+            session['current_project_id'] = current_project_id
+
+            if current_project_id and user['current_project_id'] != current_project_id:
+                cursor.execute('UPDATE users SET current_project_id = ? WHERE id = ?',
+                              (current_project_id, user['id']))
+                conn.commit()
+
             current_app.logger.info(f'User logged in successfully: {username}')
             return redirect(url_for('main.index'))
         else:
@@ -69,11 +88,12 @@ def register():
         
         try:
             password_hash = generate_password_hash(password)
+            default_project_id = get_default_project_id(cursor)
             # New users start with 'pending' status
             cursor.execute('''
-                INSERT INTO users (username, password_hash, role, status) 
-                VALUES (?, ?, 'user', 'pending')
-            ''', (username, password_hash))
+                INSERT INTO users (username, password_hash, role, status, current_project_id)
+                VALUES (?, ?, 'user', 'pending', ?)
+            ''', (username, password_hash, default_project_id))
             conn.commit()
             current_app.logger.info(f'New user registration: {username}')
             flash('注册成功，请等待管理员审核后登录', 'success')

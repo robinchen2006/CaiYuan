@@ -16,6 +16,8 @@
             <div class="header-right">
                 <span class="username">欢迎, {{ username }} {% if role == 'admin' %}<span class="role-badge admin">管理员</span>{% endif %}</span>
                 <span id="teamBadge" class="team-badge" style="display: none;"></span>
+                <span id="projectBadge" class="team-badge" style="display: none;"></span>
+                <button class="btn btn-sm btn-outline btn-header" onclick="showSwitchProjectModal()">切换项目</button>
                 <button class="btn btn-sm btn-outline btn-header" onclick="showChangePasswordModal()">修改密码</button>
                 <a href="{{ url_for('auth.logout') }}" class="btn btn-sm btn-outline btn-header">退出登录</a>
             </div>
@@ -128,6 +130,14 @@
                         <button class="btn btn-primary btn-sm" onclick="showCreateTeamModal()">+ 新建用户组</button>
                         <div class="teams-list" id="teamsList">
                             <!-- Teams will be loaded here -->
+                        </div>
+                    </div>
+
+                    <div class="admin-section">
+                        <h3>项目管理</h3>
+                        <button class="btn btn-primary btn-sm" onclick="showCreateProjectModal()">+ 新建项目</button>
+                        <div class="teams-list" id="projectsList">
+                            <!-- Projects will be loaded here -->
                         </div>
                     </div>
                     
@@ -335,6 +345,46 @@
             <div class="modal-footer">
                 <button class="btn btn-outline" onclick="closeModal('assignTeamModal')">取消</button>
                 <button class="btn btn-primary" onclick="assignTeam()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Switch Project Modal -->
+    <div class="modal" id="switchProjectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>切换项目</h3>
+                <button class="close-btn" onclick="closeModal('switchProjectModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="switchProjectSelect">选择项目</label>
+                    <select id="switchProjectSelect"></select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('switchProjectModal')">取消</button>
+                <button class="btn btn-primary" onclick="switchProject()">切换</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Project Modal (Admin) -->
+    <div class="modal" id="createProjectModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3>新建项目</h3>
+                <button class="close-btn" onclick="closeModal('createProjectModal')">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="newProjectName">项目名称</label>
+                    <input type="text" id="newProjectName" placeholder="请输入项目名称">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-outline" onclick="closeModal('createProjectModal')">取消</button>
+                <button class="btn btn-primary" onclick="createProject()">创建</button>
             </div>
         </div>
     </div>

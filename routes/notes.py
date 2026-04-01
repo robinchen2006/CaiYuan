@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify, request, session, current_app
 from database import get_db
-from utils import login_required, get_user_team_id, allowed_file, convert_to_progressive_jpeg, create_thumbnail
+from utils import login_required, get_user_team_id, get_current_project_id, allowed_file, convert_to_progressive_jpeg, create_thumbnail
 from werkzeug.utils import secure_filename
 from datetime import datetime
 import os
@@ -18,21 +18,22 @@ def get_groups():
     cursor = conn.cursor()
     
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     if team_id:
         # Get groups shared within team
         cursor.execute('''
             SELECT * FROM groups 
-            WHERE team_id = ? 
+            WHERE team_id = ? AND project_id = ?
             ORDER BY created_at DESC
-        ''', (team_id,))
+        ''', (team_id, project_id))
     else:
         # User not in a team, get only their own groups
         cursor.execute('''
             SELECT * FROM groups 
-            WHERE user_id = ? AND team_id IS NULL
+            WHERE user_id = ? AND team_id IS NULL AND project_id = ?
             ORDER BY created_at DESC
-        ''', (session['user_id'],))
+        ''', (session['user_id'], project_id))
     
     groups = [dict(row) for row in cursor.fetchall()]
     return jsonify(groups)
@@ -49,23 +50,24 @@ def create_group():
         return jsonify({'error': '品类名称不能为空'}), 400
     
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
     
     # Check if group name already exists
     if team_id:
-        cursor.execute('SELECT id FROM groups WHERE name = ? AND team_id = ?', (name, team_id))
+        cursor.execute('SELECT id FROM groups WHERE name = ? AND team_id = ? AND project_id = ?', (name, team_id, project_id))
     else:
-        cursor.execute('SELECT id FROM groups WHERE name = ? AND user_id = ? AND team_id IS NULL', (name, session['user_id']))
+        cursor.execute('SELECT id FROM groups WHERE name = ? AND user_id = ? AND team_id IS NULL AND project_id = ?', (name, session['user_id'], project_id))
         
     if cursor.fetchone():
         return jsonify({'error': '该品类名称已存在，请使用其他名称'}), 400
         
     cursor.execute('''
-        INSERT INTO groups (name, user_id, team_id) 
-        VALUES (?, ?, ?)
-    ''', (name, session['user_id'], team_id))
+        INSERT INTO groups (name, user_id, team_id, project_id)
+        VALUES (?, ?, ?, ?)
+    ''', (name, session['user_id'], team_id, project_id))
     conn.commit()
     group_id = cursor.lastrowid
     
@@ -84,6 +86,7 @@ def update_group(group_id):
         return jsonify({'error': '品类名称不能为空'}), 400
     
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
@@ -91,13 +94,13 @@ def update_group(group_id):
     if team_id:
         cursor.execute('''
             UPDATE groups SET name = ? 
-            WHERE id = ? AND team_id = ?
-        ''', (name, group_id, team_id))
+            WHERE id = ? AND team_id = ? AND project_id = ?
+        ''', (name, group_id, team_id, project_id))
     else:
         cursor.execute('''
             UPDATE groups SET name = ? 
-            WHERE id = ? AND user_id = ? AND team_id IS NULL
-        ''', (name, group_id, session['user_id']))
+            WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?
+        ''', (name, group_id, session['user_id'], project_id))
     
     conn.commit()
     
@@ -109,6 +112,7 @@ def update_group(group_id):
 def delete_group(group_id):
     """Delete a group and all its notes/images"""
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
@@ -117,13 +121,13 @@ def delete_group(group_id):
     if team_id:
         cursor.execute('''
             SELECT filename FROM images 
-            WHERE group_id = ? AND team_id = ?
-        ''', (group_id, team_id))
+            WHERE group_id = ? AND team_id = ? AND project_id = ?
+        ''', (group_id, team_id, project_id))
     else:
         cursor.execute('''
             SELECT filename FROM images 
-            WHERE group_id = ? AND user_id = ? AND team_id IS NULL
-        ''', (group_id, session['user_id']))
+            WHERE group_id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?
+        ''', (group_id, session['user_id'], project_id))
     
     images = cursor.fetchall()
     
@@ -135,19 +139,19 @@ def delete_group(group_id):
     
     # Delete records from database
     if team_id:
-        cursor.execute('DELETE FROM images WHERE group_id = ? AND team_id = ?',
-                      (group_id, team_id))
-        cursor.execute('DELETE FROM notes WHERE group_id = ? AND team_id = ?',
-                      (group_id, team_id))
-        cursor.execute('DELETE FROM groups WHERE id = ? AND team_id = ?',
-                      (group_id, team_id))
+        cursor.execute('DELETE FROM images WHERE group_id = ? AND team_id = ? AND project_id = ?',
+                      (group_id, team_id, project_id))
+        cursor.execute('DELETE FROM notes WHERE group_id = ? AND team_id = ? AND project_id = ?',
+                      (group_id, team_id, project_id))
+        cursor.execute('DELETE FROM groups WHERE id = ? AND team_id = ? AND project_id = ?',
+                      (group_id, team_id, project_id))
     else:
-        cursor.execute('DELETE FROM images WHERE group_id = ? AND user_id = ? AND team_id IS NULL',
-                      (group_id, session['user_id']))
-        cursor.execute('DELETE FROM notes WHERE group_id = ? AND user_id = ? AND team_id IS NULL',
-                      (group_id, session['user_id']))
-        cursor.execute('DELETE FROM groups WHERE id = ? AND user_id = ? AND team_id IS NULL',
-                      (group_id, session['user_id']))
+        cursor.execute('DELETE FROM images WHERE group_id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (group_id, session['user_id'], project_id))
+        cursor.execute('DELETE FROM notes WHERE group_id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (group_id, session['user_id'], project_id))
+        cursor.execute('DELETE FROM groups WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (group_id, session['user_id'], project_id))
     
     conn.commit()
     
@@ -163,6 +167,7 @@ def get_notes():
     """Get notes with their images, optionally filtered by group"""
     group_id = request.args.get('group_id')
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
@@ -174,18 +179,18 @@ def get_notes():
                 FROM notes n 
                 JOIN groups g ON n.group_id = g.id 
                 LEFT JOIN users u ON n.user_id = u.id
-                WHERE n.group_id = ? AND n.team_id = ?
+                WHERE n.group_id = ? AND n.team_id = ? AND n.project_id = ?
                 ORDER BY n.date DESC, n.created_at DESC
-            ''', (group_id, team_id))
+            ''', (group_id, team_id, project_id))
         else:
             cursor.execute('''
                 SELECT n.*, g.name as group_name, u.username as author
                 FROM notes n 
                 JOIN groups g ON n.group_id = g.id 
                 LEFT JOIN users u ON n.user_id = u.id
-                WHERE n.team_id = ?
+                WHERE n.team_id = ? AND n.project_id = ?
                 ORDER BY n.date DESC, n.created_at DESC
-            ''', (team_id,))
+            ''', (team_id, project_id))
     else:
         if group_id:
             cursor.execute('''
@@ -193,18 +198,18 @@ def get_notes():
                 FROM notes n 
                 JOIN groups g ON n.group_id = g.id 
                 LEFT JOIN users u ON n.user_id = u.id
-                WHERE n.group_id = ? AND n.user_id = ? AND n.team_id IS NULL
+                WHERE n.group_id = ? AND n.user_id = ? AND n.team_id IS NULL AND n.project_id = ?
                 ORDER BY n.date DESC, n.created_at DESC
-            ''', (group_id, session['user_id']))
+            ''', (group_id, session['user_id'], project_id))
         else:
             cursor.execute('''
                 SELECT n.*, g.name as group_name, u.username as author
                 FROM notes n 
                 JOIN groups g ON n.group_id = g.id 
                 LEFT JOIN users u ON n.user_id = u.id
-                WHERE n.user_id = ? AND n.team_id IS NULL
+                WHERE n.user_id = ? AND n.team_id IS NULL AND n.project_id = ?
                 ORDER BY n.date DESC, n.created_at DESC
-            ''', (session['user_id'],))
+            ''', (session['user_id'], project_id))
     
     notes = []
     for row in cursor.fetchall():
@@ -213,9 +218,9 @@ def get_notes():
         cursor.execute('''
             SELECT id, filename, original_filename 
             FROM images 
-            WHERE note_id = ?
+            WHERE note_id = ? AND project_id = ?
             ORDER BY created_at ASC
-        ''', (note['id'],))
+        ''', (note['id'], project_id))
         imgs = []
         for img_row in cursor.fetchall():
             img = dict(img_row)
@@ -258,15 +263,27 @@ def create_note():
         return jsonify({'error': '请输入笔记内容或上传图片'}), 400
     
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
+
+    # Verify selected group belongs to current project and permission scope
+    if team_id:
+        cursor.execute('SELECT id FROM groups WHERE id = ? AND team_id = ? AND project_id = ?',
+                      (group_id, team_id, project_id))
+    else:
+        cursor.execute('SELECT id FROM groups WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (group_id, session['user_id'], project_id))
+
+    if not cursor.fetchone():
+        return jsonify({'error': '品类不存在或不属于当前项目'}), 400
     
     try:
         cursor.execute('''
-            INSERT INTO notes (content, date, group_id, user_id, team_id) 
-            VALUES (?, ?, ?, ?, ?)
-        ''', (content, date, group_id, session['user_id'], team_id))
+            INSERT INTO notes (content, date, group_id, user_id, team_id, project_id)
+            VALUES (?, ?, ?, ?, ?, ?)
+        ''', (content, date, group_id, session['user_id'], team_id, project_id))
         note_id = cursor.lastrowid
         
         saved_images = []
@@ -279,9 +296,9 @@ def create_note():
                 original_filename = chunk_file.get('original_filename', 'image')
                 
                 cursor.execute('''
-                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id, project_id))
                 
                 saved_images.append({
                     'id': cursor.lastrowid,
@@ -331,9 +348,9 @@ def create_note():
                     current_app.logger.error(f'Error creating thumbnail for {name}: {str(e)}')
                 
                 cursor.execute('''
-                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id, project_id))
                 saved_images.append({
                     'id': cursor.lastrowid,
                     'filename': filename,
@@ -384,6 +401,7 @@ def update_note(note_id):
         return jsonify({'error': '请输入笔记内容或保留/上传图片'}), 400
     
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
@@ -391,29 +409,40 @@ def update_note(note_id):
     try:
         # Verify note belongs to user or team
         if team_id:
-            cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ?', (note_id, team_id))
+            cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ? AND project_id = ?', (note_id, team_id, project_id))
         else:
-            cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL', 
-                          (note_id, session['user_id']))
+            cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                          (note_id, session['user_id'], project_id))
         
         if not cursor.fetchone():
             return jsonify({'error': '笔记不存在或无权限'}), 403
         
+        # Ensure target group is under current project and permission scope
+        if team_id:
+            cursor.execute('SELECT id FROM groups WHERE id = ? AND team_id = ? AND project_id = ?',
+                          (group_id, team_id, project_id))
+        else:
+            cursor.execute('SELECT id FROM groups WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                          (group_id, session['user_id'], project_id))
+
+        if not cursor.fetchone():
+            return jsonify({'error': '品类不存在或不属于当前项目'}), 400
+
         cursor.execute('''
             UPDATE notes 
-            SET content = ?, date = ?, group_id = ?, updated_at = CURRENT_TIMESTAMP 
+            SET content = ?, date = ?, group_id = ?, project_id = ?, updated_at = CURRENT_TIMESTAMP
             WHERE id = ?
-        ''', (content, date, group_id, note_id))
+        ''', (content, date, group_id, project_id, note_id))
         
         # Delete images not in keep_images
         if keep_image_ids:
             placeholders = ','.join('?' * len(keep_image_ids))
             cursor.execute(f'''
                 SELECT filename FROM images 
-                WHERE note_id = ? AND id NOT IN ({placeholders})
-            ''', [note_id] + keep_image_ids)
+                WHERE note_id = ? AND project_id = ? AND id NOT IN ({placeholders})
+            ''', [note_id, project_id] + keep_image_ids)
         else:
-            cursor.execute('SELECT filename FROM images WHERE note_id = ?', (note_id,))
+            cursor.execute('SELECT filename FROM images WHERE note_id = ? AND project_id = ?', (note_id, project_id))
         
         images_to_delete = cursor.fetchall()
         for img in images_to_delete:
@@ -423,10 +452,10 @@ def update_note(note_id):
         
         if keep_image_ids:
             placeholders = ','.join('?' * len(keep_image_ids))
-            cursor.execute(f'DELETE FROM images WHERE note_id = ? AND id NOT IN ({placeholders})',
-                          [note_id] + keep_image_ids)
+            cursor.execute(f'DELETE FROM images WHERE note_id = ? AND project_id = ? AND id NOT IN ({placeholders})',
+                          [note_id, project_id] + keep_image_ids)
         else:
-            cursor.execute('DELETE FROM images WHERE note_id = ?', (note_id,))
+            cursor.execute('DELETE FROM images WHERE note_id = ? AND project_id = ?', (note_id, project_id))
         
         # Save new images
         saved_images = []
@@ -438,9 +467,9 @@ def update_note(note_id):
                 original_filename = chunk_file.get('original_filename', 'image')
                 
                 cursor.execute('''
-                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id, project_id))
                 saved_images.append({'id': cursor.lastrowid, 'filename': filename})
         
         for file in files:
@@ -483,9 +512,9 @@ def update_note(note_id):
                 filename = f"{current_username}/{name}"
                 
                 cursor.execute('''
-                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id))
+                    INSERT INTO images (filename, original_filename, note_id, date, group_id, user_id, team_id, project_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (filename, original_filename, note_id, date, group_id, session['user_id'], team_id, project_id))
                 saved_images.append({'id': cursor.lastrowid, 'filename': filename})
         
         conn.commit()
@@ -503,23 +532,24 @@ def update_note(note_id):
 def delete_note(note_id):
     """Delete a note and its images"""
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
     
     # Verify permission
     if team_id:
-        cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ?', (note_id, team_id))
+        cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ? AND project_id = ?', (note_id, team_id, project_id))
     else:
-        cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL',
-                      (note_id, session['user_id']))
+        cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (note_id, session['user_id'], project_id))
     
     if not cursor.fetchone():
         current_app.logger.warning(f'User {session.get("user_id")} attempted to delete non-existent or unauthorized note: {note_id}')
         return jsonify({'error': '笔记不存在或无权限'}), 403
     
     # Get images to delete files
-    cursor.execute('SELECT filename FROM images WHERE note_id = ?', (note_id,))
+    cursor.execute('SELECT filename FROM images WHERE note_id = ? AND project_id = ?', (note_id, project_id))
     images = cursor.fetchall()
     
     for img in images:
@@ -527,8 +557,8 @@ def delete_note(note_id):
         if os.path.exists(filepath):
             os.remove(filepath)
     
-    cursor.execute('DELETE FROM images WHERE note_id = ?', (note_id,))
-    cursor.execute('DELETE FROM notes WHERE id = ?', (note_id,))
+    cursor.execute('DELETE FROM images WHERE note_id = ? AND project_id = ?', (note_id, project_id))
+    cursor.execute('DELETE FROM notes WHERE id = ? AND project_id = ?', (note_id, project_id))
     conn.commit()
     
     current_app.logger.info(f'User {session.get("user_id")} deleted note: {note_id}')
@@ -540,21 +570,22 @@ def delete_note(note_id):
 def delete_note_image(note_id, image_id):
     """Delete a single image from a note"""
     team_id = get_user_team_id()
+    project_id = get_current_project_id()
     
     conn = get_db()
     cursor = conn.cursor()
     
     # Verify permission
     if team_id:
-        cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ?', (note_id, team_id))
+        cursor.execute('SELECT id FROM notes WHERE id = ? AND team_id = ? AND project_id = ?', (note_id, team_id, project_id))
     else:
-        cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL',
-                      (note_id, session['user_id']))
+        cursor.execute('SELECT id FROM notes WHERE id = ? AND user_id = ? AND team_id IS NULL AND project_id = ?',
+                      (note_id, session['user_id'], project_id))
     
     if not cursor.fetchone():
         return jsonify({'error': '笔记不存在或无权限'}), 403
     
-    cursor.execute('SELECT filename FROM images WHERE id = ? AND note_id = ?', (image_id, note_id))
+    cursor.execute('SELECT filename FROM images WHERE id = ? AND note_id = ? AND project_id = ?', (image_id, note_id, project_id))
     image = cursor.fetchone()
     
     if image:
@@ -562,7 +593,7 @@ def delete_note_image(note_id, image_id):
         if os.path.exists(filepath):
             os.remove(filepath)
         
-        cursor.execute('DELETE FROM images WHERE id = ?', (image_id,))
+        cursor.execute('DELETE FROM images WHERE id = ? AND project_id = ?', (image_id, project_id))
         conn.commit()
         current_app.logger.info(f'User {session.get("user_id")} deleted image {image_id} from note {note_id}')
     
@@ -572,18 +603,64 @@ def delete_note_image(note_id, image_id):
 
 # ============ User Info API ============
 
+@notes_bp.route('/projects', methods=['GET'])
+@login_required
+def get_projects_for_user():
+    """Get all projects and mark current project"""
+    conn = get_db()
+    cursor = conn.cursor()
+    current_project_id = get_current_project_id()
+
+    cursor.execute('SELECT id, name, created_at FROM projects ORDER BY created_at DESC')
+    projects = [dict(row) for row in cursor.fetchall()]
+    for project in projects:
+        project['is_current'] = (project['id'] == current_project_id)
+
+    return jsonify(projects)
+
+
+@notes_bp.route('/projects/switch', methods=['POST'])
+@login_required
+def switch_project():
+    """Switch current project for current user"""
+    data = request.get_json()
+    project_id = data.get('project_id')
+    if not project_id:
+        return jsonify({'error': '项目ID不能为空'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('SELECT id, name FROM projects WHERE id = ?', (project_id,))
+    project = cursor.fetchone()
+    if not project:
+        return jsonify({'error': '项目不存在'}), 404
+
+    session['current_project_id'] = project['id']
+    cursor.execute('UPDATE users SET current_project_id = ? WHERE id = ?', (project['id'], session['user_id']))
+    conn.commit()
+
+    return jsonify({
+        'message': '项目切换成功',
+        'project_id': project['id'],
+        'project_name': project['name']
+    })
+
+
 @notes_bp.route('/user/info', methods=['GET'])
 @login_required
 def get_user_info():
     """Get current user info"""
     conn = get_db()
     cursor = conn.cursor()
+    current_project_id = get_current_project_id()
     cursor.execute('''
-        SELECT u.id, u.username, u.role, u.status, u.team_id, t.name as team_name
+        SELECT u.id, u.username, u.role, u.status, u.team_id, t.name as team_name,
+               p.id as current_project_id, p.name as current_project_name
         FROM users u
         LEFT JOIN user_teams t ON u.team_id = t.id
+        LEFT JOIN projects p ON p.id = ?
         WHERE u.id = ?
-    ''', (session['user_id'],))
+    ''', (current_project_id, session['user_id']))
     user = cursor.fetchone()
     conn.close()
     

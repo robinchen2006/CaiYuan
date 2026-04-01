@@ -4,6 +4,8 @@ let selectedGroupId = null;
 let selectedFiles = [];
 let editSelectedFiles = [];
 let editKeepImageIds = [];
+let currentProjects = [];
+let currentProjectId = null;
 
 // Initialize
 document.addEventListener('DOMContentLoaded', function() {
@@ -22,6 +24,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Load user info (for team display)
     loadUserInfo();
+
+    // Load available projects for switch modal
+    loadProjects();
 });
 
 // ============ Sidebar Toggle for Mobile ============
@@ -1048,8 +1053,94 @@ async function loadUserInfo() {
                 teamBadge.style.display = 'inline-block';
             }
         }
+
+        if (user.current_project_id) {
+            currentProjectId = user.current_project_id;
+        }
+
+        if (user.current_project_name) {
+            const projectBadge = document.getElementById('projectBadge');
+            if (projectBadge) {
+                projectBadge.textContent = `项目: ${user.current_project_name}`;
+                projectBadge.style.display = 'inline-block';
+            }
+        }
     } catch (error) {
         console.error('Failed to load user info:', error);
+    }
+}
+
+async function loadProjects() {
+    try {
+        const response = await fetch('/api/projects');
+        if (!response.ok) return;
+
+        currentProjects = await response.json();
+        const current = currentProjects.find(p => p.is_current);
+        if (current) {
+            currentProjectId = current.id;
+        }
+        updateProjectSwitchSelect();
+    } catch (error) {
+        console.error('Failed to load projects:', error);
+    }
+}
+
+function updateProjectSwitchSelect() {
+    const select = document.getElementById('switchProjectSelect');
+    if (!select) return;
+
+    select.innerHTML = '';
+    currentProjects.forEach(project => {
+        const option = document.createElement('option');
+        option.value = project.id;
+        option.textContent = project.name;
+        if (project.id === currentProjectId || project.is_current) {
+            option.selected = true;
+        }
+        select.appendChild(option);
+    });
+}
+
+async function showSwitchProjectModal() {
+    await loadProjects();
+    showModal('switchProjectModal');
+}
+
+async function switchProject() {
+    const select = document.getElementById('switchProjectSelect');
+    const projectId = parseInt(select.value, 10);
+
+    if (!projectId) {
+        showToast('请选择项目', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/projects/switch', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ project_id: projectId })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            currentProjectId = projectId;
+            showToast(`已切换到项目: ${data.project_name}`);
+            closeModal('switchProjectModal');
+
+            await Promise.all([loadUserInfo(), loadProjects(), loadGroups()]);
+            loadBrowseContent();
+
+            const adminTab = document.getElementById('adminTab');
+            if (adminTab && adminTab.classList.contains('active')) {
+                loadAdminData();
+            }
+        } else {
+            showToast(data.error || '切换失败', 'error');
+        }
+    } catch (error) {
+        showToast('切换失败', 'error');
     }
 }
 
@@ -1133,6 +1224,7 @@ async function loadAdminData() {
     await Promise.all([
         loadPendingUsers(),
         loadTeams(),
+        loadAdminProjects(),
         loadAllUsers()
     ]);
 }
@@ -1215,6 +1307,7 @@ async function rejectUser(userId) {
 // ============ User Teams ============
 
 let allTeams = [];
+let adminProjects = [];
 
 async function loadTeams() {
     try {
@@ -1321,6 +1414,122 @@ async function deleteTeam(teamId) {
             loadAdminData();
         } else {
             const data = await response.json();
+            showToast(data.error || '删除失败', 'error');
+        }
+    } catch (error) {
+        showToast('删除失败', 'error');
+    }
+}
+
+// ============ Projects (Admin) ============
+
+async function loadAdminProjects() {
+    try {
+        const response = await fetch('/api/admin/projects');
+        if (!response.ok) return;
+
+        adminProjects = await response.json();
+        renderProjects(adminProjects);
+    } catch (error) {
+        console.error('Failed to load projects:', error);
+    }
+}
+
+function renderProjects(projects) {
+    const container = document.getElementById('projectsList');
+    if (!container) return;
+
+    if (projects.length === 0) {
+        container.innerHTML = '<p class="empty-text">暂无项目</p>';
+        return;
+    }
+
+    container.innerHTML = projects.map(project => `
+        <div class="team-item">
+            <div class="team-info">
+                <strong>${escapeHtml(project.name)}</strong>
+                <span class="team-count">${project.group_count} 品类 / ${project.note_count} 笔记</span>
+            </div>
+            <div class="team-actions">
+                <button class="btn btn-sm btn-outline" onclick="editProject(${project.id}, '${escapeHtml(project.name)}')">编辑</button>
+                <button class="btn btn-sm btn-danger" onclick="deleteProject(${project.id})">删除</button>
+            </div>
+        </div>
+    `).join('');
+}
+
+function showCreateProjectModal() {
+    const input = document.getElementById('newProjectName');
+    if (input) {
+        input.value = '';
+    }
+    showModal('createProjectModal');
+}
+
+async function createProject() {
+    const name = document.getElementById('newProjectName').value.trim();
+    if (!name) {
+        showToast('请输入项目名称', 'error');
+        return;
+    }
+
+    try {
+        const response = await fetch('/api/admin/projects', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('项目创建成功');
+            closeModal('createProjectModal');
+            await Promise.all([loadAdminProjects(), loadProjects()]);
+        } else {
+            showToast(data.error || '创建失败', 'error');
+        }
+    } catch (error) {
+        showToast('创建失败', 'error');
+    }
+}
+
+async function editProject(projectId, currentName) {
+    const newName = prompt('请输入新的项目名称', currentName);
+    if (!newName || newName.trim() === currentName) return;
+
+    try {
+        const response = await fetch(`/api/admin/projects/${projectId}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: newName.trim() })
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('项目更新成功');
+            await Promise.all([loadAdminProjects(), loadProjects(), loadUserInfo()]);
+        } else {
+            showToast(data.error || '更新失败', 'error');
+        }
+    } catch (error) {
+        showToast('更新失败', 'error');
+    }
+}
+
+async function deleteProject(projectId) {
+    if (!confirm('确定要删除此项目吗？如果项目下还有品类或笔记将无法删除。')) return;
+
+    try {
+        const response = await fetch(`/api/admin/projects/${projectId}`, {
+            method: 'DELETE'
+        });
+
+        const data = await response.json();
+        if (response.ok) {
+            showToast('项目已删除');
+            await Promise.all([loadAdminProjects(), loadProjects(), loadUserInfo(), loadGroups()]);
+            loadBrowseContent();
+        } else {
             showToast(data.error || '删除失败', 'error');
         }
     } catch (error) {

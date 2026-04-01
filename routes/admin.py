@@ -200,3 +200,108 @@ def delete_user_team(team_id):
     return jsonify({'message': '用户组已删除'})
 
 
+@admin_bp.route('/projects', methods=['GET'])
+@admin_required
+def get_projects():
+    """Get all projects (admin only)"""
+    conn = get_db()
+    cursor = conn.cursor()
+    cursor.execute('''
+        SELECT p.id, p.name, p.created_at,
+               COUNT(DISTINCT g.id) as group_count,
+               COUNT(DISTINCT n.id) as note_count
+        FROM projects p
+        LEFT JOIN groups g ON g.project_id = p.id
+        LEFT JOIN notes n ON n.project_id = p.id
+        GROUP BY p.id
+        ORDER BY p.created_at DESC
+    ''')
+    projects = [dict(row) for row in cursor.fetchall()]
+    return jsonify(projects)
+
+
+@admin_bp.route('/projects', methods=['POST'])
+@admin_required
+def create_project():
+    """Create a new project (admin only)"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+
+    if not name:
+        return jsonify({'error': '项目名称不能为空'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM projects WHERE name = ?', (name,))
+    if cursor.fetchone():
+        return jsonify({'error': '项目名称已存在'}), 400
+
+    cursor.execute('INSERT INTO projects (name) VALUES (?)', (name,))
+    conn.commit()
+    project_id = cursor.lastrowid
+
+    return jsonify({'id': project_id, 'name': name, 'message': '项目创建成功'})
+
+
+@admin_bp.route('/projects/<int:project_id>', methods=['PUT'])
+@admin_required
+def update_project(project_id):
+    """Update project name (admin only)"""
+    data = request.get_json()
+    name = data.get('name', '').strip()
+
+    if not name:
+        return jsonify({'error': '项目名称不能为空'}), 400
+
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id FROM projects WHERE id = ?', (project_id,))
+    if not cursor.fetchone():
+        return jsonify({'error': '项目不存在'}), 404
+
+    cursor.execute('SELECT id FROM projects WHERE name = ? AND id != ?', (name, project_id))
+    if cursor.fetchone():
+        return jsonify({'error': '项目名称已存在'}), 400
+
+    cursor.execute('UPDATE projects SET name = ? WHERE id = ?', (name, project_id))
+    conn.commit()
+    return jsonify({'message': '项目更新成功'})
+
+
+@admin_bp.route('/projects/<int:project_id>', methods=['DELETE'])
+@admin_required
+def delete_project(project_id):
+    """Delete project (admin only)"""
+    conn = get_db()
+    cursor = conn.cursor()
+
+    cursor.execute('SELECT id, name FROM projects WHERE id = ?', (project_id,))
+    project = cursor.fetchone()
+    if not project:
+        return jsonify({'error': '项目不存在'}), 404
+
+    cursor.execute('SELECT COUNT(*) as count FROM projects')
+    total_projects = cursor.fetchone()['count']
+    if total_projects <= 1:
+        return jsonify({'error': '至少保留一个项目'}), 400
+
+    cursor.execute('SELECT COUNT(*) as count FROM groups WHERE project_id = ?', (project_id,))
+    group_count = cursor.fetchone()['count']
+    cursor.execute('SELECT COUNT(*) as count FROM notes WHERE project_id = ?', (project_id,))
+    note_count = cursor.fetchone()['count']
+    if group_count > 0 or note_count > 0:
+        return jsonify({'error': '该项目下仍有品类或笔记，无法删除'}), 400
+
+    cursor.execute('DELETE FROM projects WHERE id = ?', (project_id,))
+    cursor.execute('''
+        UPDATE users
+        SET current_project_id = (SELECT id FROM projects ORDER BY id ASC LIMIT 1)
+        WHERE current_project_id = ?
+    ''', (project_id,))
+    conn.commit()
+
+    return jsonify({'message': '项目已删除'})
+
+
