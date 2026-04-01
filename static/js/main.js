@@ -835,7 +835,7 @@ function renderNotes(notes) {
                     </div>
                 </div>
                 <div class="note-card-body">
-                    <div class="note-card-content">${escapeHtml(note.content)}</div>
+                    <div class="note-card-content">${formatNoteContentWithLinks(note.content)}</div>
                     ${imagesHtml}
                 </div>
             </div>
@@ -1020,6 +1020,35 @@ function escapeHtml(text) {
     const div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+function trimTrailingUrlPunctuation(url) {
+    const trailingPattern = /[.,!?;:)}\]"'\u3002\uff0c\uff1b\uff1a\uff01\uff1f\u3001\u300d\u300f\u3011\uff09]+$/;
+    const match = url.match(trailingPattern);
+    if (!match) {
+        return { cleanUrl: url, trailing: '' };
+    }
+
+    const trailing = match[0];
+    return {
+        cleanUrl: url.slice(0, -trailing.length),
+        trailing
+    };
+}
+
+function formatNoteContentWithLinks(content) {
+    const escaped = escapeHtml(content || '');
+    const urlPattern = /(https?:\/\/[^\s<>"']+|www\.[^\s<>"']+)/gi;
+
+    return escaped.replace(urlPattern, (match) => {
+        const { cleanUrl, trailing } = trimTrailingUrlPunctuation(match);
+        if (!cleanUrl) {
+            return match;
+        }
+
+        const href = cleanUrl.startsWith('www.') ? `https://${cleanUrl}` : cleanUrl;
+        return `<a href="${href}" target="_blank" rel="noopener noreferrer">${cleanUrl}</a>${trailing}`;
+    });
 }
 
 // Close modals on outside click

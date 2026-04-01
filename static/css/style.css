@@ -556,6 +556,16 @@ body {
     margin-bottom: 15px;
 }
 
+.note-card-content a {
+    color: var(--primary-color);
+    text-decoration: underline;
+    word-break: break-all;
+}
+
+.note-card-content a:hover {
+    opacity: 0.85;
+}
+
 .note-card-content:empty {
     display: none;
 }
